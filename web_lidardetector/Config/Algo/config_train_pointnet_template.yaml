@@ -1,0 +1,76 @@
+# =============================================================================
+# TRAIN_MODEL:
+# =============================================================================
+# =============================================================================
+# train
+# =============================================================================
+TRAIN:
+  # =============================================================================
+  # overall related
+  # =============================================================================
+  OVERALL:
+    TYPE: ['pointnet', 0, '模型类别名称']
+    KEY: ['pointnet_cov1d', 1, '模型loss及评估结果保存的key值,就是字典的key']
+    TRAIN_PREFIX: ['train', 0, '训练数据集前缀,eg:train_points.npy']
+    INITIAL_RESULT: [True, 2, '是否初始化保存的结果,True则会清空所有相关数据字典key值对应的数据']
+  
+  # =============================================================================
+  # path related
+  # =============================================================================
+  PATH:
+    DATASET_PATH: ['cluster_data', 1, '模型输入数据的路径']
+    RESULT_PATH: ['original_loss', 1, '保存模型的路径']
+    SAVE_MODEL_PREFIX: ['LidarDetectorPointnet_cov1d_128_ori_loss', 2, '保存模型的前缀，保存的命名规则为: save_model_prefix_epoch.torch']
+    CONTINUE_MODEL_PREFIX: ['LidarDetectorPointnet_cov1d_128_ori_loss', 2, '续跑模型的前缀']
+
+  # =============================================================================
+  # dataset related
+  # =============================================================================
+  
+  # =============================================================================
+  # model related
+  # =============================================================================
+  MODEL: # 1
+    STRUCTURE:
+      INPUT_DIM: [4, 1, '输入数据维度,4则为[x,y,z,I]']
+      INPUT_LAYERS: [[64, 128, 1024], 1, '输入特征提取层维度']
+      CLASS_LAYERS: [[1024, 512, 256], 1, 'heading + 分类网络特征解析层维度']
+      OUTPUT_LAYERS: [[1, 4, 6], 1, 'heading + 分类输出维度,顺序为heading回归,heading分类,类别分类']
+      HEADING_BIN: [4, 1, 'heading分类的个数,与output_layers[1]一致']
+      XYZ_DIM: [3, 1, "中心坐标的维度,默认=3,即xyz"]
+    FREEZE:
+      LAYER: [False, 1, '是否冻结指定模块']
+      LAYER_NAMES: [['input_layers', 'class_layers', 'output_layers'], 1, '需要冻结的模块名称,内容需与MODEL_STRUCTURE中定义的名称相同']
+
+  # =============================================================================
+  # train control related
+  # =============================================================================
+  CTRL:
+    CTRL_: # 2
+      EPOCH_NUM: [2, 2, '总训练轮次']
+      CONTINUE_EPOCH: [-1, 2, '续跑模型的轮次']
+      OPTIMIZER_LR: [0.001, 2, '初始学习率']
+      SCHEDULER_TYPE: ['', 2, '学习率变化模型,现支持:None(不填):常规模型,torch.optim.lr_scheduler.StepLR;warmup:学习率从0上升,随后cos变化下降,见utils.get_cosine_schedule_with_warmup']
+      SCHEDULER_STEP: [1, 2, 'torch.optim.lr_scheduler.StepLR的step_size参数']
+      SCHEDULER_GAMMA: [0.9, 2, 'torch.optim.lr_scheduler.StepLR的gamma参数']
+      SCHEDULER_WARMUP_STEPS: [25, 2, 'warmup模式下生效,学习率以线性变化在scheduler_warmup_steps时达到optimizer_lr']
+    DATA: # 2
+      BATCH_SIZE: [128, 2, '单个batch中的样本数量']
+      POSITIVE_DATA_RATIO: [0.5, 2, '正类(标注了heading角)的占比,keep_positive_data_ratio为True时生效']
+      KEEP_POSITIVE_DATA_RATIO: [True, 2, '固定一个batch中正类样本比例']
+    LOSS:
+      PRINT_GAP: [1, 2, '输出间隔']
+      TYPE: [['reg', 'cls', 'cls'], 1, '损失函数类别,pointnet只需前三项']
+      FUNC: [[None, None, 'CrossEntropyLoss'], 1, 'loss函数,支持:None:表示根据TYPE选择,现在只支持reg:smooth l1和cls:crossentropy;pointnet只需前三项']
+      WEIGHT: [['20', '20', '1'], 2, '不同损失之间的权重']
+TEST:
+  TEST_:
+    PREFIX: [['test'], 0, '评估数据集前缀']
+    TYPE: [['eva_test'], 0, '评估数据集类型,用于保存评估结果的key值 self.evaluate_result["eva_test"]']
+    TRAIN_NUMBER: [-1, 0, '训练数据的总数，用于简单的测试，正式训练时不要赋值;对训练集做切片']
+    EVA_NUMBER: [[15000], 2, '验证集数据的个数,切片;此处仅使用第一个']
+    START_EPOCH: [0, 2, '评估过程起始epoch']
+    END_EPOCH: [1, 2, '评估过程结束epoch']
+SAVE:
+  SAVE_EPOCH: [1, 2, '保存指定epoch的onnx模型']
+  

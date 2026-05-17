@@ -1,0 +1,177 @@
+# 层级：
+# 0-隐藏，只存在于配置文件中，但再web页面对内对外都不可见
+# 1-对内，内部开发人员可以再web页面看到，0和1互补，包含所有参数
+# 2-对外，外部用户可见，是1的子集
+
+# =============================================================================
+# display
+# =============================================================================
+DISPLAY: # 2
+  RESULT_PATH: ['original_loss', 2, '损失和评估结果保存路径(文件夹名)']
+  LOSSES_KEY: ['pointnet_cov1d', 2, '存放losses的key']
+  LOSSES_TYPE: [['heading reg', 'heading dir', 'cls', 'total'], 2, '损失类型']
+  SUBCLASS_TYPE_1: [['Heading Error'], 2, '验证集评估结果-heading角误差']
+  SUBCLASS_TYPE_2: [['Obstacle', 'Pedstrian', 'Mbike', 'Car', 'Bus', 'Tricycle'], 2, '验证集评估结果-类别AP']
+
+# =============================================================================
+# preprocess
+# =============================================================================
+PREPROCESS: 
+  # =============================================================================
+  # generator
+  # =============================================================================
+  GEN_DATASET_CFG:
+      DATASET_PATH: ['ori_data', 1, 'pcd+txt原始数据集文件的路径']
+      CONFIG_FILE_PATH: ['config_file', 1, '配置文件的路径']
+      LIDAR_FILE_EXTENTION: ['bin', 2, '雷达文件的扩展名,只支持bin\pcd']
+      INCLUDE_SCENE_LIST: [[], 2, '包含的场景文件名称']
+      TRANSLATION_LIST: [[] , 2, '每个场景下的偏移向量,亦即统一坐标原点(如车辆后轴中心)在当前坐标系下的坐标']
+      RATIO: [0.8175, 2, '训练集样本占数据集的比例']
+      REGENERATE: [True, 2, '是否重新生成数据集配置文件']
+
+# =============================================================================
+# train_model
+# =============================================================================
+TRAIN_MODEL:
+  TRAIN:
+    OVERALL:
+      TYPE: ['pointpillars', 0, '模型类别名称']
+      KEY: ['pointpillars', 1,'模型loss及评估结果保存的key值，就是字典的key']
+      TRAIN_PREFIX: ['training', 0, '训练数据集前缀,eg：train_points.npy']
+      INITIAL_RESULT: [True, 2, '是否初始化保存的结果，True则会清空所有相关数据字典key值对应的数据']
+    PATH:
+      DATASET_PATH: ['ori_data', 1, 'pcd+txt原始数据集文件的路径']
+      CONFIG_FILE_PATH: ['config_file', 1, '配置文件的路径']
+      RESULT_PATH: ['result_folder', 1, '保存模型和损失的路径(文件夹名称)']
+      SAVE_MODEL_PREFIX: ['LidarDetectorPointpillars', 2, '保存模型的前缀，保存的命名规则为: save_model_prefix_epoch.torch']
+      CONTINUE_MODEL_PREFIX: ['LidarDetectorPointpillars', 2, '续跑模型的前缀']
+    AUGMENT:
+      EXTRACT_MINOR_CLS: [False, 2, '是否抽取少数类别样本降低类间不平衡']
+      RANDOM_WORLD_FLIP: [['x', 'y'], 0, 'x轴和y轴镜像翻转']
+      RANDOM_WORLD_ROTATION: [[-0.3925, 0.3925], 0, 'z轴随机旋转']
+      RANDOM_WORLD_SCALING: [[0.95, 1.05], 0, '随机缩放']
+    VOXEL_PARAMS:
+      POINT_CLOUD_RANGE: [[-51.2, -51.2, -5.0, 51.2, 51.2, 3.0], 1, '点云范围']
+      VOXEL_SIZE: [[0.2, 0.2, 8.0], 1, '体素的dx dy dz']
+      GRID_SIZE: [[512, 512, 1], 1, 'x y z方向体素的个数']
+    MODEL:
+      PRE_PROCESS:
+        BALANCED_RESAMPLING: [True, 2, '是否进行重采样改善类间不平衡']
+        FILTER_MIN_POINTS_IN_GT: [[40, 50, 30, 25, 20], 2, 'Car Bus Tricycle Mbike Pedes点云簇的最少点数阈值']
+        MIN_NUM_CORNER: [1, 2, 'gt_box保留规则: 至少1个顶点在ROI内']
+        MAX_POINTS_PER_VOXEL: [20, 2, '每个voxel中最多保留点数']
+        MAX_NUM_OF_VOXELS: [30000, 2, '每帧点云最多保留voxel数量']
+      VFE:
+        WITH_DISTANCE: [False, 2, '体素特征中是否保留距离信息']
+        USE_ABSOLUTE_XYZ: [True, 2, '体素特征中是否保留绝对坐标信息']
+        POINT_FEATURES_CHANNELS: [5, 1, '输入点云特征通道数量x, y, z, i, time']
+        VFE_NUM_FILTERS: [[64], 2, 'vfe模块卷积核个数,亦即输出特征通道数']
+      SCATTER:
+        scatter_num_filter: [64, 2, 'scatter模块输出特征通道数,与vfe模块应一致']
+      BACKBONE:
+        LAYER_NUMS: [[3, 5, 5], 1, '卷积层的个数']
+        LAYER_STRIDES: [[2, 2, 2], 1, '卷积层的步长,列表长度与LAYER_NUMS相同']
+        BACKBONE_NUM_FILTERS: [[64, 128, 256], 1, '卷积层卷积核个数,亦即输出特征通道数,列表长度与LAYER_NUMS相同']
+        UPSAMPLE_STRIDES: [[0.5, 1, 2], 1, '上采样反卷积层步长']
+        NUM_UPSAMPLE_FILTER: [[128, 128, 128], 1, '上采样反卷积层卷积核个数,亦即输出特征通道数,列表长度与UPSAMPLE_STRIDES相同']
+      MULTIHEAD:
+        SEPARATE_MULTIHEAD: [True, 1, '多个任务头分离']
+        USE_DIRECTION_CLASSIFIER: [False, 1, '航向角分类_NotImplemented']
+        USE_MULTIHEAD: [True, 1, '使用多任务头']
+        SHARED_CONV_FILTER_NUM: [64, 1, '共享卷积层卷积核个数,亦即输出特征通道数']
+        INPUT_CHANNELS: [384, 1, 输入特征通道数=sum(NUM_UPSAMPLE_FILTER)]
+        HEAD_CONFIGS: [[{'head_cls_name': ['Car']}, {'head_cls_name': ['Bus']}, {'head_cls_name': ['Tricycle']},
+                      {'head_cls_name': ['Mbike']}, {'head_cls_name': ['Pedestrian']}], 1, '每个检测头对应的物体类别']
+        SEPARATE_REG_CONFIG: [{'num_middle_conv': 1, 'num_middle_filter': 64, 'reg_list': ['reg:2', 'height:1', 'size:3', 'angle:2']}, 1, '单个检测头网络层配置参数']
+        NUM_DIR_BINS: [2, 1, '航向角分类的区间个数,USE_DIRECTION_CLASSIFIER=True时可用_NotImplemented']
+      ANCHORS:
+        ANCHOR_GENERATOR_CONFIG_CAR:
+          class_name: ['Car', 1, '类别名']
+          anchor_sizes: [[4.63, 1.97, 1.74], 2, 'Car先验锚框尺寸dx dy dz']
+          anchor_rotations: [[0, 1.57], 1, 'Car锚框角度']
+          anchor_bottom_heights: [[-0.95], 2, 'Car锚框底边高度']
+          align_center: [False, 1, 'align_center']
+          feature_map_stride: [4, 1, 'feature_map_stride']
+          matched_threshold: [0.6, 1, 'Car匹配阈值']
+          unmatched_threshold: [0.45, 1, 'Car未匹配阈值']
+        ANCHOR_GENERATOR_CONFIG_BUS:
+          class_name: [Bus, 1, '类别名']
+          anchor_sizes: [[10.5, 2.94, 3.47], 2, 'Bus先验锚框尺寸dx dy dz']
+          anchor_rotations: [[0, 1.57], 1, 'Bus锚框角度']
+          anchor_bottom_heights: [[-0.085], 2, 'Bus锚框底边高度']
+          align_center: [False, 1, 'align_center']
+          feature_map_stride: [4, 1, 'feature_map_stride']
+          matched_threshold: [0.55, 1, 'Car匹配阈值']
+          unmatched_threshold: [0.4, 1, 'Bus未匹配阈值']
+        ANCHOR_GENERATOR_CONFIG_TRICYCLE:
+          class_name: ['Tricycle', 1, '类别名']
+          anchor_sizes: [[2.30, 1.63, 1.83], 2, 'Tricycle先验锚框尺寸dx dy dz']
+          anchor_rotations: [[0, 1.57], 1, 'Tricycle锚框角度']
+          anchor_bottom_heights: [[-1.033], 2, 'Tricycle锚框底边高度']
+          align_center: [False, 1, 'align_center']
+          feature_map_stride: [4, 1, 'feature_map_stride']
+          matched_threshold: [0.55, 1, 'Tricycle匹配阈值']
+          unmatched_threshold: [0.4, 1, 'Tricycle未匹配阈值']                                          
+        ANCHOR_GENERATOR_CONFIG_MBIKE:
+          class_name: ['Mbike', 1, '类别名']
+          anchor_sizes: [[2.11, 0.77, 1.47], 2, 'Mbike先验锚框尺寸dx dy dz']
+          anchor_rotations: [[0, 1.57], 1, 'Mbike锚框角度']
+          anchor_bottom_heights: [[-1.085], 2, 'Mbike锚框底边高度']
+          align_center: [False, 1, 'align_center']
+          feature_map_stride: [4, 1, 'feature_map_stride']
+          matched_threshold: [0.5, 1, 'Mbike匹配阈值']
+          unmatched_threshold: [0.3, 1, 'Mbike未匹配阈值']  
+        ANCHOR_GENERATOR_CONFIG_PEDESTRIAN:
+          class_name: ['Pedestrian', 1, '类别名']
+          anchor_sizes: [[2.11, 0.77, 1.47], 2, 'Pedestrian先验锚框尺寸dx dy dz']
+          anchor_rotations: [[0, 1.57], 1, 'Pedestrian锚框角度']
+          anchor_bottom_heights: [[-1.085], 2, 'Pedestrian锚框底边高度']
+          align_center: [False, 1, 'align_center']
+          feature_map_stride: [4, 1, 'feature_map_stride']
+          matched_threshold: [0.5, 1, 'Pedestrian匹配阈值']
+          unmatched_threshold: [0.3, 1, 'Pedestrian未匹配阈值'] 
+      POST_PROCESS:
+        TARGET_ASSIGNER_CONFIG: [{'pos_fraction': -1.0, 'sample_size': 512, 'norm_by_num_examples': False, 'match_height': False}, 1, '真值矩阵生成配置参数']
+        SCORE_THRESH: [0.2, 2, '置信分阈值']
+        NMS_CONFIG: [{'multi_classes_nms': True, 'nms_type': 'nms_gpu', 'nms_thresh': 0.2, 
+                    'nms_pre_maxsize': 1000, 'nms_post_maxsize': 83}, 1, '预测值NMS配置参数']
+        DIR_OFFSET: [0.78539, 1, '航向角偏移量_NotImplemented']
+      FREEZE:
+        LAYER: [False, 1, '是否冻结指定模块']
+        LAYER_NAMES: [[], 1, '需要冻结的模块名称,[vfe\scatter\backbone\multihead]中选择']
+    CTRL:
+      CTRL_:
+        EPOCH_NUM: [50, 2, '总训练轮次']
+        CONTINUE_EPOCH: [-1, 2, '续跑模型的轮次']
+        OPTIMIZER_LR: [0.001, 2, '初始学习率']
+        BETAS: [[0.95, 0.99], 2, 'Adam优化器动量参数']
+        SCHEDULER_TYPE: ['OneCycleLR', 2, '学习率变化模型现支持:None(不填)-->StepLR; warmup-->学习率先线性上升,随后cos变化下降; OneCycle-->OneCycleLR']
+      DATA:
+        BATCH_SIZE: [2, 2, '单个batch中的样本数量']
+      LOSS:
+        PRINT_GAP: [100, 2, '输出间隔']
+        TYPE: [['cls', 'reg'], 1, '损失函数类别']
+        FUNC: [['SigmoidFocalLoss', 'WeightedL1Loss'], 1, 'loss函数名称']
+        WEIGHT: [[1.0, 0.25], 2, '不同损失之间的权重']
+        POS_CLS_WEIGHT: [1.0, 2, '正例样本分类损失权重']
+        NEG_CLS_WEIGHT: [2.0, 2, '负例样本分类损失权重']
+        HEAD_WEIGHT: [[1.0, 1.0, 1.0, 1.0, 1.0], 2, '不同检测头之间的损失权重']
+        CLASS_NAMES: [['Car', 'Bus', 'Tricycle', 'Mbike', 'Pedestrian'], 1, '目标检测类别名称']
+        NUM_CLASSES: [5, 1, '目标检测总类别数量']
+  TEST:
+    TEST_:
+      PREFIX: [['test'], 0, '评估数据集前缀']
+      TYPE: [['eva_test'], 0, '评估数据集类型，用于保存评估结果的key值 self.evaluate_result[eva_test]']
+      TRAIN_NUMBER: [-1 , 0, '训练数据的总数，用于简单的测试，正式训练时不要赋值;其实就是对训练集做切片']
+      EVA_NUMBER: [[-1], 2, '验证集数据的个数,切片;此处仅使用第一个']
+
+      EVALUATE_TASK: ['Detection', 0, '测评类型']
+      DETECTION_TYPE: [['Car', 'Bus', 'Tricycle', 'Mbike', 'Pedestrian'], 2, '需要测评的目标类别']
+      ASSOCIATION_MODE: ['IOU', 1, '关联匹配模式']
+      CRITERION: [['union', 0.5], 1, '关联匹配的标准']
+      IGNORE_TYPE: [['Others', 'Obstacle', 'Ignore', 'Construction_vehicle', 'Delete'], 1, '不参与测评的目标类别']
+      IGNORE_XY_RANGE: [[-51.2, 51.2, -51.2, 51.2], 2, '测评ROI,应该与POINT_CLOUD_RANGE保持一致']
+      START_EPOCH: [0, 2, '测评过程起始epoch']
+      END_EPOCH: [1, 2, '测评过程结束epoch']
+  SAVE:
+    SAVE_EPOCH: [1, 2, '保存指定轮次的onnx模型']

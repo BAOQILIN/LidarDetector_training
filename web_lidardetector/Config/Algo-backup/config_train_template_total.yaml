@@ -1,0 +1,159 @@
+# =============================================================================
+# TRAIN_MODEL:
+# =============================================================================
+# =============================================================================
+# train
+# =============================================================================
+TRAIN:
+  # =============================================================================
+  # overall related
+  # =============================================================================
+  OVERALL:
+    TYPE: 'pointnet'
+    KEY: 'pointnet_cov1d'
+    TRAIN_PREFIX: 'train'
+    INITIAL_RESULT: True # 重置评价和损失结果
+  
+  # =============================================================================
+  # path related
+  # =============================================================================
+  PATH:
+    DATASET_PATH: 'cluster_data'
+    RESULT_PATH: 'original_loss' #'/media/lz/F4DA55D3DA5592AA/Project/HBOX/LidarDetector/Results/save_result_0105' #'E:\Project\HBOX\LidarDetector\Results\save_result_0105'
+    SAVE_MODEL_PREFIX: 'LidarDetectorPointnet_cov1d_128_ori_loss'
+    CONTINUE_MODEL_PREFIX: 'LidarDetectorPointnet_cov1d_128_ori_loss'
+
+  # =============================================================================
+  # dataset related
+  # =============================================================================
+  AUGMENT:
+    SPLIT:
+      RUN_SPLIT: False
+      TYPE: [0, 1, 2, 3, 4, 5]
+      TYPE_PROB: [0, 0, 0, 0.3, 0.5, 0]
+      RANGE_RATIO: [0.2, 0.8]             #split theta range
+      NUMBER: [2, 3, 4, 5]                #splited subcluster number
+      NUMBER_PROB: [0.4, 0.3, 0.2, 0.1]   #split_number prob, sum to 1
+      USEFUL_POINTS_NUMBER: 5             #minimum points number of valid splited cluster
+      XY_NOISE: False                        #move augment split cluster by move xy
+      XY_THETA: True                        #keep same theta with original points
+      XY_RANGE: [-10, 10]                   #move augment split range
+      XY_NUMBER: [0, 1, 2, 3, 4]            #move augment split number
+      XY_PROB: [0.2, 0.5, 0.3, 0.0, 0.0]  #move augment split prob, sum to 1
+    NOISE:
+      RUN_NOISE: False
+      TYPE: [0, 1, 2, 3, 4, 5]
+      TYPE_PROB: [0.05, 0.8, 0.8, 0.3, 0.8, 0]
+      SIGMA: 0.05
+      MU: 0
+    ROTATE:
+      RUN_ROTATO: False
+      TYPE: [0, 1, 2, 3, 4, 5]
+      TYPE_PROB: [0.05, 0.8, 0.8, 0.3, 0.8, 0]
+      SIGMA: 0.08
+      MU: 0
+
+  # =============================================================================
+  # model related
+  # =============================================================================
+  MODEL:
+    #--- static structure params
+    STRUCTURE:
+      INPUT_DIM: 4
+      XYZ_DIM: 3
+      INPUT_LAYERS: [64, 128, 1024]
+      CENTER_LAYERS: [64, 128, 1024]
+      CLASS_LAYERS: [1024, 512, 256]
+      CONCAT_LAYERS: [512]
+      OUTPUT_LAYERS: [1, 4, 6]
+      EMBEDDING_LAYERS: [128]
+      HEADING_BIN: 4
+    #--- near k params
+    NEAR_K:
+      LAYERS: [1024, 512, 128, 2]
+      NUM: 5
+    #--- transformer encoder params
+    TRANSF:
+      D_MODEL: 512
+      N_HEAD: 4
+      N_ENCODER_LAYERS: 2
+      DIM_FEEDFORWARD: 1024
+      DROPOUT: 0.1
+      NORM: 'layernorm'
+      ACTIVATION: 'relu'
+    #--- asis params
+    ASIS:
+      K: 30
+      MARGIN: 0.5
+    #--- freeze layers name
+    FREEZE:
+      LAYER: False
+      LAYER_NAMES: ['input_layers', 'class_layers', 'output_layers']
+
+  # =============================================================================
+  # train control related
+  # =============================================================================
+  CTRL:
+    CTRL_:
+      EPOCH_NUM: 2
+      CONTINUE_EPOCH: -1 #25
+      OPTIMIZER_LR: 0.001
+      SCHEDULER_TYPE: ''
+      SCHEDULER_STEP: 1
+      SCHEDULER_GAMMA: 0.9
+      SCHEDULER_WARMUP_STEPS: 25
+    DATA:
+      BATCH_SIZE: 128
+      MIN_BS: 128
+      MAX_BS: 220
+      POSITIVE_DATA_RATIO: 0.5
+      KEEP_MIN_BS: False
+      KEEP_MAX_BS: False
+      KEEP_POSITIVE_DATA_RATIO: True
+    LOSS:
+      PRINT_GAP: 1 #输出间隔
+      TYPE: ['reg', 'cls', 'cls', 'tri']
+      FUNC: [None, None, 'CrossEntropyLoss', 'TripletLoss']
+      WEIGHT: [20, 20, 1, 1]
+      TRIPLET_MARGIN: 0.3
+      TRIPLET_BATCH_TYPE: 'hard'
+      TRIPLET_TYPE: 'more-hard'
+      TRIPLET_LOSS_COUNT_ALL: True
+      TRIPLET_AUTO_STEP: [90000, 99999999]
+      TRIPLET_AUTO_TYPE: ['semi-hard', 'more-hard']
+      FOCAL_LOSS: [0.9, 0.1]  #[0.65, 0.03, 0.05, 0.15, 0.1, 0.02]
+      DISCRIMINATIVE_LOSS: [0.5, 1.5, 1.0, 1.0, 0.001]  #[delta_var, delta_dist, alpha, beta, gamma]
+      CIRCLE_LOSS_M: 0.25
+      CIRCLE_LOSS_GAMMA: 32
+
+# ============================================================================= 
+# test/evaluate related
+# =============================================================================
+TEST:
+  TEST_:
+    PREFIX: ['test']
+    TYPE: ['eva_test']
+    TRAIN_NUMBER: -1 
+    EVA_NUMBER: [15000, -1, 500]
+    SPLIT_: [False, False]
+    START_EPOCH: 0
+    END_EPOCH: 1
+  FUSION:
+    TYPE: 'Cluster'  #'Default', 'Cluster'
+    MARGIN: 0.3
+    POSITIVE_CUTOFF: 0.5
+  CLUSTER:
+    TYPE: 'keyMeanShift'  #'DBSCAN', 'keyDBSCAN', 'MeanShift', 'keyMeanShift'
+    RADIUS: 0.4
+    SHARE: True
+    MAX_ITER_TIMES: 10
+    KEY: True
+    KEY_TYPE: 'label'  #, 'label', 'prob'
+    KEY_LABEL: [3, 4]
+    KEY_PROB: [0.3, 0.3]
+
+# =============================================================================
+# save
+# =============================================================================
+SAVE:
+  SAVE_EPOCH: 1

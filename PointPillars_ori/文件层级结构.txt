@@ -1,0 +1,79 @@
+data_root(文件夹名由系统指定无法更改,所有数据文件的根目录)
+|   |
+|	|---- PointCloud
+|	|       |
+|	|       |---- XXX_YYY_ZZZ0.pcd
+|	|       |
+|	|       |---- XXX_YYY_ZZZ1.pcd
+|	|       |
+|	|       |---- ...(会同时包含对应的左/主/右雷达点云数据)
+|	|
+|	|---- Image
+|	|       |
+|	|       |---- AAA_BBB_CCC0.jpg
+|	|       |
+|	|       |---- AAA_BBB_CCC1.jpg
+|	|       |
+|	|       |---- ...(会同时包含对应的前/后/左/右相机图片数据)
+|	|
+|	|---- Label
+|	|       |
+|	|       |---- XXX_YYY_ZZZ0.json
+|	|       |
+|	|       |---- XXX_YYY_ZZZ1.json
+|	|       |
+|	|       |---- AAA_BBB_CCC0.json
+|	|       |
+|	|       |---- AAA_BBB_CCC1.json
+|	|       |
+|	|       |---- ...(会同时包含对应的所有传感器的标签数据)
+|	|
+|	|---- params_dict['PREPROCESS']["SAVE_DATA_PATH"][0] --> 用户在配置文件 PREPROCESS模块 设定的保存预处理后数据的文件夹名称
+|	        |
+|	        |---- file1
+|	        |
+|	        |---- file2
+|	        |
+|	        |---- ...
+|
+result_root(文件夹名由系统指定无法更改)
+|   |
+|	|---- params_dict['TRAIN_MODEL']['TRAIN']['PATH']['RESULT_PATH'][0]（文件夹名由用户在配置文件中自定义,用于保存训练损失和验证集测评结果）
+|	|       |
+|	|       |---- losses.npy(训练损失文件,文件名称不可更改,内部为字典类型,key值为'loss_record',)
+|	|       |
+|	|       |---- eva_vali.npy(验证集测评结果文件,文件名称不可更改,内部为字典类型,key值为'evaluate_result')
+|	|       
+|	|---- model_torch(文件夹名由框架指定无法更改,保存每个epoch的模型文件)
+|	|       |
+|	|       |---- params_dict['TRAIN_MODEL']['TRAIN']['PATH']['SAVE_MODEL_PREFIX'][0] + '_0.torch'
+|	|       |
+|	|       |---- params_dict['TRAIN_MODEL']['TRAIN']['PATH']['SAVE_MODEL_PREFIX'][0] + '_1.torch'
+|	|       |
+|	|       |---- ...
+|	|       
+|	|---- params_dict['TRAIN_MODEL']['SAVE']['SAVE_PATH'][0](文件夹名由用户在配置文件中自定义,用户保存onnx和bin模型输出)
+|	        |
+|	        |---- params_dict['TRAIN_MODEL']['TRAIN']['PATH']['SAVE_MODEL_PREFIX'][0] + str(epoch_index)（某个指定epoch的onnx和bin模型输出文件夹）
+|	        |       |
+|	        |       |---- XXX.onnx
+|	        |       |---- YYY.onnx
+|	        |       |---- ZZZ.bin
+|	        |
+|	        |---- ...
+|
+save_root(文件夹名由系统指定无法更改,用于保存训练损失和验证集测评结果的可视化图片)
+    |
+	|---- KKK.png
+    |
+	|---- QQQ.png
+    |
+	|---- ...
+
+
+
+
+
+
+
+	

@@ -1,0 +1,11 @@
+# =============================================================================
+# data_load
+# =============================================================================
+DATA_LOAD:
+    ORI_DATA: ['ori_data', 1, '数据集加载路径(文件夹名)']
+    PARTITION_DATA_PATH: ['middle_data\partition_output', 1, '输入文件加载路径']
+    OUTPUT: ['middle_data\load_output', 1, '文件保存路径']
+    TRAIN_FILE_PREFIX: ['train', 0, '训练集_保存文件名称前缀']
+    TRAIN_DATA: ['data_train.json', 0, '训练集_输入文件名']
+    TEST_FILE_PREFIX: ['test', 0, '测试集_保存文件名称前缀']
+    TEST_DATA: ['data_test.json', 0, '测试集_输入文件名']

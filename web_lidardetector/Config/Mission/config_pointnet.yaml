@@ -1,0 +1,347 @@
+DISPLAY:
+  LOSSES_KEY:
+  - pointnet_cov1d
+  - 2
+  - "\u5B58\u653Elosses\u7684key"
+  LOSSES_TYPE:
+  - - heading reg
+    - heading dir
+    - cls
+    - total
+  - 2
+  - "\u635F\u5931\u7C7B\u578B"
+  RESULT_PATH:
+  - original_loss
+  - 2
+  - "\u635F\u5931\u548C\u8BC4\u4F30\u7ED3\u679C\u4FDD\u5B58\u8DEF\u5F84(\u6587\u4EF6\
+    \u5939\u540D)"
+  SUBCLASS_TYPE_1:
+  - - Heading Error
+  - 2
+  - "\u9A8C\u8BC1\u96C6\u8BC4\u4F30\u7ED3\u679C-heading\u89D2\u8BEF\u5DEE"
+  SUBCLASS_TYPE_2:
+  - - Obstacle
+    - Pedstrian
+    - Mbike
+    - Car
+    - Bus
+    - Tricycle
+  - 2
+  - "\u9A8C\u8BC1\u96C6\u8BC4\u4F30\u7ED3\u679C-\u7C7B\u522BAP"
+PREPROCESS:
+  DATASET_FILTER:
+    EXCLUDE_PREFIX:
+    - - ''
+    - 2
+    - "\u9700\u8981\u5254\u9664\u7684\u6570\u636E\u96C6\u573A\u666F\u540D(\u6587\u4EF6\
+      \u540D)\u524D\u7F00"
+    EXCLUDE_SCENE:
+    - - ''
+    - 2
+    - "\u9700\u8981\u5254\u9664\u7684\u6570\u636E\u96C6\u573A\u666F\u540D(\u6587\u4EF6\
+      \u540D)"
+    EXCLUDE_SUFFIX:
+    - - ''
+    - 2
+    - "\u9700\u8981\u5254\u9664\u7684\u6570\u636E\u96C6\u573A\u666F\u540D(\u6587\u4EF6\
+      \u540D)\u540E\u7F00"
+    INCLUDE_PREFIX:
+    - - ''
+    - 2
+    - "\u5305\u542B\u7684\u6570\u636E\u96C6\u573A\u666F\u540D(\u6587\u4EF6\u540D)\u524D\
+      \u7F00"
+    INCLUDE_SCENE:
+    - - ''
+    - 2
+    - "\u5305\u542B\u7684\u6570\u636E\u96C6\u573A\u666F\u540D(\u6587\u4EF6\u540D)"
+    INCLUDE_SUFFIX:
+    - - cloud
+    - 2
+    - "\u5305\u542B\u7684\u6570\u636E\u96C6\u573A\u666F\u540D(\u6587\u4EF6\u540D)\u540E\
+      \u7F00"
+    ORI_DATA:
+    - ori_data
+    - 1
+    - "\u6570\u636E\u96C6\u52A0\u8F7D\u8DEF\u5F84(\u6587\u4EF6\u5939\u540D)"
+  DATA_LOAD:
+    ORI_DATA:
+    - ori_data
+    - 1
+    - "\u6570\u636E\u96C6\u52A0\u8F7D\u8DEF\u5F84(\u6587\u4EF6\u5939\u540D)"
+    OUTPUT:
+    - middle_data\load_output
+    - 1
+    - "\u6587\u4EF6\u4FDD\u5B58\u8DEF\u5F84"
+    PARTITION_DATA_PATH:
+    - middle_data\partition_output
+    - 1
+    - "\u8F93\u5165\u6587\u4EF6\u52A0\u8F7D\u8DEF\u5F84"
+    TEST_DATA:
+    - data_test.json
+    - 0
+    - "\u6D4B\u8BD5\u96C6_\u8F93\u5165\u6587\u4EF6\u540D"
+    TEST_FILE_PREFIX:
+    - test
+    - 0
+    - "\u6D4B\u8BD5\u96C6_\u4FDD\u5B58\u6587\u4EF6\u540D\u79F0\u524D\u7F00"
+    TRAIN_DATA:
+    - data_train.json
+    - 0
+    - "\u8BAD\u7EC3\u96C6_\u8F93\u5165\u6587\u4EF6\u540D"
+    TRAIN_FILE_PREFIX:
+    - train
+    - 0
+    - "\u8BAD\u7EC3\u96C6_\u4FDD\u5B58\u6587\u4EF6\u540D\u79F0\u524D\u7F00"
+  GEN_CLUSTER:
+    MIN_CLUSTER_HEIGHT:
+    - 0.2
+    - 2
+    - "\u70B9\u4E91\u7C07\u6700\u5C0F\u9AD8\u5EA6\u9608\u503C"
+    MIN_CLUSTER_POINTS:
+    - 25
+    - 2
+    - "\u70B9\u4E91\u7C07\u6700\u5C11\u70B9\u6570\u9608\u503C"
+    NPY_DATA_PATH:
+    - middle_data\load_output
+    - 1
+    - "\u8F93\u5165\u6587\u4EF6\u52A0\u8F7D\u8DEF\u5F84"
+    OUTPUT:
+    - cluster_data
+    - 1
+    - "\u6587\u4EF6\u4FDD\u5B58\u8DEF\u5F84(\u6587\u4EF6\u5939\u540D)"
+    TEST_DATA_PREFIX:
+    - test
+    - 0
+    - "\u6D4B\u8BD5\u96C6_\u8F93\u5165\u6587\u4EF6\u540D\u79F0\u524D\u7F00"
+    TEST_SAVE_PREFIX:
+    - test
+    - 0
+    - "\u6D4B\u8BD5\u96C6_\u4FDD\u5B58\u6587\u4EF6\u540D\u79F0\u524D\u7F00"
+    TRAIN_DATA_PREFIX:
+    - train
+    - 0
+    - "\u8BAD\u7EC3\u96C6_\u8F93\u5165\u6587\u4EF6\u540D\u79F0\u524D\u7F00"
+    TRAIN_SAVE_PREFIX:
+    - train
+    - 0
+    - "\u8BAD\u7EC3\u96C6_\u4FDD\u5B58\u6587\u4EF6\u540D\u79F0\u524D\u7F00"
+  PARTITION:
+    EXTRA_SUFFIX:
+    - []
+    - 0
+    - "\u4FDD\u5B58\u6587\u4EF6\u540D\u79F0\u540E\u7F00"
+    ORI_DATA:
+    - ori_data
+    - 1
+    - "\u6570\u636E\u96C6\u52A0\u8F7D\u8DEF\u5F84(\u6587\u4EF6\u5939\u540D)"
+    OUTPUT:
+    - middle_data\partition_output
+    - 1
+    - "\u6587\u4EF6\u4FDD\u5B58\u8DEF\u5F84"
+    RATIO:
+    - 0.1
+    - 2
+    - "\u6D4B\u8BD5\u96C6\u5728\u6570\u636E\u96C6\u4E2D\u7684\u5360\u6BD4"
+    REGENERATE:
+    - true
+    - 2
+    - "\u6570\u636E\u96C6\u662F\u5426\u91CD\u65B0\u751F\u6210:\u5220\u9664/\u878D\u5408\
+      \u672C\u5730\u5DF2\u6709\u7684\u4FDD\u5B58\u6587\u4EF6"
+    SEED:
+    - 100
+    - 0
+    - "\u968F\u673A\u79CD\u5B50:\u591A\u6B21\u968F\u673A\u7ED3\u679C\u4E00\u81F4"
+    SHUFFLE_INDEX:
+    - 0
+    - 2
+    - "\u6570\u636E\u96C6\u4E71\u5E8F\u5C42\u7EA7(0:\u70B9\u4E91\u7C07\u4E71\u5E8F\
+      ; 1:\u5355\u5E27\u4E71\u5E8F; 2:\u573A\u666F\u4E71\u5E8F)"
+TRAIN_MODEL:
+  SAVE:
+    SAVE_EPOCH:
+    - 1
+    - 2
+    - "\u4FDD\u5B58\u6307\u5B9Aepoch\u7684onnx\u6A21\u578B"
+  TEST:
+    TEST_:
+      END_EPOCH:
+      - 1
+      - 2
+      - "\u8BC4\u4F30\u8FC7\u7A0B\u7ED3\u675Fepoch"
+      EVA_NUMBER:
+      - - '15000'
+      - 2
+      - "\u9A8C\u8BC1\u96C6\u6570\u636E\u7684\u4E2A\u6570,\u5207\u7247;\u6B64\u5904\
+        \u4EC5\u4F7F\u7528\u7B2C\u4E00\u4E2A"
+      PREFIX:
+      - - test
+      - 0
+      - "\u8BC4\u4F30\u6570\u636E\u96C6\u524D\u7F00"
+      START_EPOCH:
+      - 0
+      - 2
+      - "\u8BC4\u4F30\u8FC7\u7A0B\u8D77\u59CBepoch"
+      TRAIN_NUMBER:
+      - -1
+      - 0
+      - "\u8BAD\u7EC3\u6570\u636E\u7684\u603B\u6570\uFF0C\u7528\u4E8E\u7B80\u5355\u7684\
+        \u6D4B\u8BD5\uFF0C\u6B63\u5F0F\u8BAD\u7EC3\u65F6\u4E0D\u8981\u8D4B\u503C;\u5BF9\
+        \u8BAD\u7EC3\u96C6\u505A\u5207\u7247"
+      TYPE:
+      - - eva_test
+      - 0
+      - "\u8BC4\u4F30\u6570\u636E\u96C6\u7C7B\u578B,\u7528\u4E8E\u4FDD\u5B58\u8BC4\
+        \u4F30\u7ED3\u679C\u7684key\u503C self.evaluate_result[\"eva_test\"]"
+  TRAIN:
+    CTRL:
+      CTRL_:
+        CONTINUE_EPOCH:
+        - -1
+        - 2
+        - "\u7EED\u8DD1\u6A21\u578B\u7684\u8F6E\u6B21"
+        EPOCH_NUM:
+        - 5
+        - 2
+        - "\u603B\u8BAD\u7EC3\u8F6E\u6B21"
+        OPTIMIZER_LR:
+        - 0.001
+        - 2
+        - "\u521D\u59CB\u5B66\u4E60\u7387"
+        SCHEDULER_GAMMA:
+        - 0.9
+        - 2
+        - "torch.optim.lr_scheduler.StepLR\u7684gamma\u53C2\u6570"
+        SCHEDULER_STEP:
+        - 1
+        - 2
+        - "torch.optim.lr_scheduler.StepLR\u7684step_size\u53C2\u6570"
+        SCHEDULER_TYPE:
+        - ''
+        - 2
+        - "\u5B66\u4E60\u7387\u53D8\u5316\u6A21\u578B,\u73B0\u652F\u6301:None(\u4E0D\
+          \u586B):\u5E38\u89C4\u6A21\u578B,torch.optim.lr_scheduler.StepLR;warmup:\u5B66\
+          \u4E60\u7387\u4ECE0\u4E0A\u5347,\u968F\u540Ecos\u53D8\u5316\u4E0B\u964D\
+          ,\u89C1utils.get_cosine_schedule_with_warmup"
+        SCHEDULER_WARMUP_STEPS:
+        - 25
+        - 2
+        - "warmup\u6A21\u5F0F\u4E0B\u751F\u6548,\u5B66\u4E60\u7387\u4EE5\u7EBF\u6027\
+          \u53D8\u5316\u5728scheduler_warmup_steps\u65F6\u8FBE\u5230optimizer_lr"
+      DATA:
+        BATCH_SIZE:
+        - 128
+        - 2
+        - "\u5355\u4E2Abatch\u4E2D\u7684\u6837\u672C\u6570\u91CF"
+        KEEP_POSITIVE_DATA_RATIO:
+        - true
+        - 2
+        - "\u56FA\u5B9A\u4E00\u4E2Abatch\u4E2D\u6B63\u7C7B\u6837\u672C\u6BD4\u4F8B"
+        POSITIVE_DATA_RATIO:
+        - 0.5
+        - 2
+        - "\u6B63\u7C7B(\u6807\u6CE8\u4E86heading\u89D2)\u7684\u5360\u6BD4,keep_positive_data_ratio\u4E3A\
+          True\u65F6\u751F\u6548"
+      LOSS:
+        FUNC:
+        - - None
+          - None
+          - CrossEntropyLoss
+        - 1
+        - "loss\u51FD\u6570,\u652F\u6301:None:\u8868\u793A\u6839\u636ETYPE\u9009\u62E9\
+          ,\u73B0\u5728\u53EA\u652F\u6301reg:smooth l1\u548Ccls:crossentropy;pointnet\u53EA\
+          \u9700\u524D\u4E09\u9879"
+        PRINT_GAP:
+        - 10
+        - 2
+        - "\u8F93\u51FA\u95F4\u9694"
+        TYPE:
+        - - reg
+          - cls
+          - cls
+        - 1
+        - "\u635F\u5931\u51FD\u6570\u7C7B\u522B,pointnet\u53EA\u9700\u524D\u4E09\u9879"
+        WEIGHT:
+        - - '20'
+          - '20'
+          - '1'
+        - 2
+        - "\u4E0D\u540C\u635F\u5931\u4E4B\u95F4\u7684\u6743\u91CD"
+    MODEL:
+      FREEZE:
+        LAYER:
+        - false
+        - 1
+        - "\u662F\u5426\u51BB\u7ED3\u6307\u5B9A\u6A21\u5757"
+        LAYER_NAMES:
+        - - input_layers
+          - class_layers
+          - output_layers
+        - 1
+        - "\u9700\u8981\u51BB\u7ED3\u7684\u6A21\u5757\u540D\u79F0,\u5185\u5BB9\u9700\
+          \u4E0EMODEL_STRUCTURE\u4E2D\u5B9A\u4E49\u7684\u540D\u79F0\u76F8\u540C"
+      STRUCTURE:
+        CLASS_LAYERS:
+        - - 1024
+          - 512
+          - 256
+        - 1
+        - "heading + \u5206\u7C7B\u7F51\u7EDC\u7279\u5F81\u89E3\u6790\u5C42\u7EF4\u5EA6"
+        HEADING_BIN:
+        - 4
+        - 1
+        - "heading\u5206\u7C7B\u7684\u4E2A\u6570,\u4E0Eoutput_layers[1]\u4E00\u81F4"
+        INPUT_DIM:
+        - 4
+        - 1
+        - "\u8F93\u5165\u6570\u636E\u7EF4\u5EA6,4\u5219\u4E3A[x,y,z,I]"
+        INPUT_LAYERS:
+        - - 64
+          - 128
+          - 1024
+        - 1
+        - "\u8F93\u5165\u7279\u5F81\u63D0\u53D6\u5C42\u7EF4\u5EA6"
+        OUTPUT_LAYERS:
+        - - 1
+          - 4
+          - 6
+        - 1
+        - "heading + \u5206\u7C7B\u8F93\u51FA\u7EF4\u5EA6,\u987A\u5E8F\u4E3Aheading\u56DE\
+          \u5F52,heading\u5206\u7C7B,\u7C7B\u522B\u5206\u7C7B"
+    OVERALL:
+      INITIAL_RESULT:
+      - true
+      - 2
+      - "\u662F\u5426\u521D\u59CB\u5316\u4FDD\u5B58\u7684\u7ED3\u679C,True\u5219\u4F1A\
+        \u6E05\u7A7A\u6240\u6709\u76F8\u5173\u6570\u636E\u5B57\u5178key\u503C\u5BF9\
+        \u5E94\u7684\u6570\u636E"
+      KEY:
+      - pointnet_cov1d
+      - 1
+      - "\u6A21\u578Bloss\u53CA\u8BC4\u4F30\u7ED3\u679C\u4FDD\u5B58\u7684key\u503C\
+        ,\u5C31\u662F\u5B57\u5178\u7684key"
+      TRAIN_PREFIX:
+      - train
+      - 0
+      - "\u8BAD\u7EC3\u6570\u636E\u96C6\u524D\u7F00,eg:train_points.npy"
+      TYPE:
+      - pointnet
+      - 0
+      - "\u6A21\u578B\u7C7B\u522B\u540D\u79F0"
+    PATH:
+      CONTINUE_MODEL_PREFIX:
+      - LidarDetectorPointnet_cov1d_128_ori_loss
+      - 2
+      - "\u7EED\u8DD1\u6A21\u578B\u7684\u524D\u7F00"
+      DATASET_PATH:
+      - cluster_data
+      - 1
+      - "\u6A21\u578B\u8F93\u5165\u6570\u636E\u7684\u8DEF\u5F84"
+      RESULT_PATH:
+      - original_loss
+      - 1
+      - "\u4FDD\u5B58\u6A21\u578B\u7684\u8DEF\u5F84"
+      SAVE_MODEL_PREFIX:
+      - LidarDetectorPointnet_cov1d_128_ori_loss
+      - 2
+      - "\u4FDD\u5B58\u6A21\u578B\u7684\u524D\u7F00\uFF0C\u4FDD\u5B58\u7684\u547D\u540D\
+        \u89C4\u5219\u4E3A: save_model_prefix_epoch.torch"

@@ -1,0 +1,55 @@
+ALGO:
+  CODE_PATH: D:\HiBOXWeb\Demo\Pointnet\algo\timestamp
+  CONFIG_PATH: D:\HiBOXWeb\Demo\Pointnet\algo\timestamp
+  DICT:
+    my_data_display:
+    - interface.py
+    - algo_config.yaml
+    - ITrain
+    my_dataset_preprocess:
+    - interface.py
+    - algo_config.yaml
+    - IPreprocess
+    my_model_train:
+    - interface.py
+    - algo_config.yaml
+    - ITrain,ITest,ISave
+    "pcd\u8F6Cnpy":
+    - data_load.py
+    - config_data_load_template.yaml
+    - ISaveData
+    - PREPROCESS
+    "\u6570\u636E\u96C6\u5212\u5206":
+    - data_partition.py
+    - config_partition_template.yaml
+    - IPartition
+    - PREPROCESS
+    "\u6570\u636E\u96C6\u8FC7\u6EE4":
+    - data_partition.py
+    - config_dataset_filter_template.yaml
+    - ISceneFilter
+    - PREPROCESS
+    "\u6A21\u578B\u8BAD\u7EC3":
+    - interface.py
+    - config_train_pointnet_template.yaml
+    - ITrain,ITest,ISave
+    - TRAIN_MODEL
+    "\u751F\u6210cluster\u6570\u636E\u96C6":
+    - data_generator.py
+    - config_gen_cluster_template.yaml
+    - IGenClusterData
+    - PREPROCESS
+    "\u7ED3\u679C\u663E\u793A":
+    - data_display.py
+    - config_display_template.yaml
+    - IDisplayLosses,IDisplayEva
+    - DISPLAY
+MISSION:
+  CONFIG_PATH: D:\HiBOXWeb\Demo\Pointnet\algo\timestamp
+  CURRENT: "pointnet\u8BAD\u7EC3"
+  DICT:
+    "pointnet\u8BAD\u7EC3": algo_config.yaml
+    "pointpillars\u8BAD\u7EC3": config_pointpillars.yaml
+ROOT:
+  DATA_ROOT: D:\HBOX_Project\LidarDataset\main_dataset\R80_UrbanRoad_20210731_120612
+  RESULT_ROOT: D:\HBOX_Project\LidarDataset\main_dataset\R80_UrbanRoad_20210731_120612

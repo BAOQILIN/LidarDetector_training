@@ -1,0 +1,285 @@
+DISPLAY:
+  LOSSES_KEY: pointnet_cov1d
+  LOSSES_TYPE:
+  - heading reg
+  - heading dir
+  - cls
+  - total
+  RESULT_PATH: original_loss
+  SUBCLASS_TYPE_1:
+  - Heading Error
+  SUBCLASS_TYPE_2:
+  - Obstacle
+  - Pedstrian
+  - Mbike
+  - Car
+  - Bus
+  - Tricycle
+PREPROCESS:
+  DATASET_FILTER:
+    EXCLUDE_RREFIX: ''
+    EXCLUDE_SCENE: ''
+    EXCLUDE_SUFFIX: ''
+    INCLUDE_PREFIX: ''
+    INCLUDE_SCENE: ''
+    INCLUDE_SUFFIX:
+    - cloud
+    ORI_DATA: ori_data
+  DATA_LOAD:
+    ORI_DATA: ori_data
+    OUTPUT: middle_data\load_output
+    PARTITION_DATA_PATH: middle_data\partition_output
+    TEST_DATA: data_test.json
+    TEST_FILE_PREFIX: test
+    TRAIN_DATA: data_train.json
+    TRAIN_FILE_PREFIX: train
+  GEN_CLUSTER:
+    MIN_CLUSTER_HEIGHT: 0.2
+    MIN_CLUSTER_POINTS: 25
+    NPY_DATA_PATH: middle_data\load_output
+    OUTPUT: cluster_data
+    TEST_DATA_PREFIX: test
+    TEST_SAVE_PREFIX: test
+    TRAIN_DATA_PREFIX: train
+    TRAIN_SAVE_PREFIX: train
+  PARTITION:
+    EXTRA_SUFFIX: ''
+    ORI_DATA: ori_data
+    OUTPUT: middle_data\partition_output
+    RATIO: 0.1
+    REGENERATE: true
+    SEED: 100
+    SHUFFLE_INDEX: 0
+TRAIN_MODEL:
+  SAVE:
+    SAVE_EPOCH: 1
+  TEST:
+    CLUSTER:
+      KEY: true
+      KEY_LABEL:
+      - 3
+      - 4
+      KEY_PROB:
+      - 0.3
+      - 0.3
+      KEY_TYPE: label
+      MAX_ITER_TIMES: 10
+      RADIUS: 0.4
+      SHARE: true
+      TYPE: keyMeanShift
+    FUSION:
+      MARGIN: 0.3
+      POSITIVE_CUTOFF: 0.5
+      TYPE: Cluster
+    TEST_:
+      END_EPOCH: 1
+      EVA_NUMBER:
+      - 15000
+      - -1
+      - 500
+      PREFIX:
+      - test
+      SPLIT_: false,false
+      START_EPOCH: 0
+      TRAIN_NUMBER: -1
+      TYPE:
+      - eva_test
+  TRAIN:
+    AUGMENT:
+      NOISE:
+        MU: 0
+        RUN_NOISE: false
+        SIGMA: 0.05
+        TYPE:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        TYPE_PROB:
+        - 0.05
+        - 0.8
+        - 0.8
+        - 0.3
+        - 0.8
+        - 0
+      ROTATE:
+        MU: 0
+        RUN_ROTATO: false
+        SIGMA: 0.08
+        TYPE:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        TYPE_PROB:
+        - 0.05
+        - 0.8
+        - 0.8
+        - 0.3
+        - 0.8
+        - 0
+      SPLIT:
+        NUMBER:
+        - 2
+        - 3
+        - 4
+        - 5
+        NUMBER_PROB:
+        - 0.4
+        - 0.3
+        - 0.2
+        - 0.1
+        RANGE_RATIO:
+        - 0.2
+        - 0.8
+        RUN_SPLIT: false
+        TYPE:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        TYPE_PROB:
+        - 0
+        - 0
+        - 0
+        - 0.3
+        - 0.5
+        - 0
+        USEFUL_POINTS_NUMBER: 5
+        XY_NOISE: false
+        XY_NUMBER:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        XY_PROB:
+        - 0.2
+        - 0.5
+        - 0.3
+        - 0
+        - 0
+        XY_RANGE:
+        - -10
+        - 10
+        XY_THETA: true
+    CTRL:
+      CTRL_:
+        CONTINUE_EPOCH: -1
+        EPOCH_NUM: 2
+        OPTIMIZER_LR: 0.001
+        SCHEDULER_GAMMA: 0.9
+        SCHEDULER_STEP: 1
+        SCHEDULER_TYPE: ''
+        SCHEDULER_WARMUP_STEPS: 25
+      DATA:
+        BATCH_SIZE: 128
+        KEEP_MAX_BS: false
+        KEEP_MIN_BS: false
+        KEEP_POSITIVE_DATA_RATIO: true
+        MAX_BS: 220
+        MIN_BS: 128
+        POSITIVE_DATA_RATIO: 0.5
+      LOSS:
+        CIRCLE_LOSS_GAMMA: 32
+        CIRCLE_LOSS_M: 0.25
+        DISCRIMINATIVE_LOSS:
+        - 0.5
+        - 1.5
+        - 1
+        - 1
+        - 0.001
+        FOCAL_LOSS:
+        - 0.9
+        - 0.1
+        FUNC:
+        - None
+        - None
+        - CrossEntropyLoss
+        - TripletLoss
+        PRINT_GAP: 1
+        TRIPLET_AUTO_STEP:
+        - 90000
+        - 99999999
+        TRIPLET_AUTO_TYPE:
+        - semi-hard
+        - more-hard
+        TRIPLET_BATCH_TYPE: hard
+        TRIPLET_LOSS_COUNT_ALL: true
+        TRIPLET_MARGIN: 0.3
+        TRIPLET_TYPE: more-hard
+        TYPE:
+        - reg
+        - cls
+        - cls
+        - tri
+        WEIGHT:
+        - 20
+        - 20
+        - 1
+        - 1
+    MODEL:
+      ASIS:
+        K: 30
+        MARGIN: 0.5
+      FREEZE:
+        LAYER: false
+        LAYER_NAMES:
+        - input_layers
+        - class_layers
+        - output_layers
+      NEAR_K:
+        LAYERS:
+        - 1024
+        - 512
+        - 128
+        - 2
+        NUM: 5
+      STRUCTURE:
+        CENTER_LAYERS:
+        - 64
+        - 128
+        - 1024
+        CLASS_LAYERS:
+        - 1024
+        - 512
+        - 256
+        CONCAT_LAYERS:
+        - 512
+        EMBEDDING_LAYERS:
+        - 128
+        HEADING_BIN: 4
+        INPUT_DIM: 4
+        INPUT_LAYERS:
+        - 64
+        - 128
+        - 1024
+        OUTPUT_LAYERS:
+        - 1
+        - 4
+        - 6
+        XYZ_DIM: 3
+      TRANSF:
+        ACTIVATION: relu
+        DIM_FEEDFORWARD: 1024
+        DROPOUT: 0.1
+        D_MODEL: 512
+        NORM: layernorm
+        N_ENCODER_LAYERS: 2
+        N_HEAD: 4
+    OVERALL:
+      INITIAL_RESULT: true
+      KEY: pointnet_cov1d
+      TRAIN_PREFIX: train
+      TYPE: pointnet
+    PATH:
+      CONTINUE_MODEL_PREFIX: LidarDetectorPointnet_cov1d_128_ori_loss
+      DATASET_PATH: cluster_data
+      RESULT_PATH: original_loss
+      SAVE_MODEL_PREFIX: LidarDetectorPointnet_cov1d_128_ori_loss

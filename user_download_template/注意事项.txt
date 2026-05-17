@@ -1,0 +1,6 @@
+
+1. alog文件夹下的.py文件(除utils.py)不允许两两互相调用，公共函数/类应当定义在uitls.py中，utils.py文件可以被其他文件调用；
+
+2. model/layer文件夹下的网络层.py文件不允许两两互相调用；
+
+3. model/model/networks.py文件允许调用model/layer文件夹下的网络层文件，注意调用时路径 eg: import layer0 / from layer0 import Layer0s

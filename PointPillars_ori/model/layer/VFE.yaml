@@ -1,0 +1,8 @@
+voxel_size_x: [0.2, '体素X方向尺寸']
+voxel_size_y: [0.2, '体素Y方向尺寸']
+voxel__size_z: [8.0, '体素Z方向尺寸']
+range_x_min: [-102.4, 'ROI X方向最小值']
+range_y_min: [-51.2, 'ROI Y方向最小值']
+range_z_min: [-3.0, 'ROI Z方向最小值']
+use_absolute_xyz: [True, '是否使用绝对位置信息,默认True']
+with_distance: [False, '是否使用点云距离信息,默认False']

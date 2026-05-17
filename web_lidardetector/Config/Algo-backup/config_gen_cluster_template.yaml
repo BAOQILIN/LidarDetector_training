@@ -1,0 +1,12 @@
+# =============================================================================
+# generator
+# =============================================================================
+GEN_CLUSTER:
+    NPY_DATA_PATH: ['middle_data\load_output', 1, '输入文件加载路径']
+    OUTPUT: ['cluster_data', 1, '文件保存路径(文件夹名)']
+    TRAIN_DATA_PREFIX: ['train', 0, '训练集_输入文件名称前缀']
+    TRAIN_SAVE_PREFIX: ['train', 0, '训练集_保存文件名称前缀']
+    TEST_DATA_PREFIX: ['test', 0, '测试集_输入文件名称前缀']
+    TEST_SAVE_PREFIX: ['test', 0, '测试集_保存文件名称前缀']
+    MIN_CLUSTER_POINTS: [25, 2, '点云簇最少点数阈值']
+    MIN_CLUSTER_HEIGHT: [0.2, 2, '点云簇最小高度阈值']

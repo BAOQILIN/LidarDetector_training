@@ -1,0 +1,9 @@
+# =============================================================================
+# display
+# =============================================================================
+RESULT_PATH: ['original_loss', 2, '损失和评估结果保存路径(文件夹名)']
+LOSSES_KEY: ['pointnet_cov1d', 2, '存放losses的key']
+LOSSES_TYPE: [['heading reg', 'heading dir', 'cls', 'total'], 2, '损失类型']
+SUBCLASS_TYPE_1: [['Heading Error'], 2, '验证集评估结果-heading角误差']
+SUBCLASS_TYPE_2: [['Obstacle', 'Pedstrian', 'Mbike', 'Car', 'Bus', 'Tricycle'], 2, '验证集评估结果-类别AP']
+  

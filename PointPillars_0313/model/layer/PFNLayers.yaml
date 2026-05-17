@@ -1,2 +1,0 @@
-input_channels: [10, '输入特征通道数']
-output_channels: [64, '输出特征通道数']

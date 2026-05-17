@@ -1,3 +1,0 @@
-input_channel: [64, '输入特征通道数']
-filter_num: [128, '卷积核个数(输出特征通道数)']
-upsample_stride: [0.5, '卷积/逆卷积步长']

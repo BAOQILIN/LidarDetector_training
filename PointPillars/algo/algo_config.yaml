@@ -8,9 +8,17 @@
 # preprocess
 # =============================================================================
 PREPROCESS:
-  ORI_DATA_PATH: ['Lidar', 1, '原始数据集加载路径(文件夹名),具体使用参见data_preprocessor.py中DataPreprocessor的构造函数注释']
-  ORI_LABEL_PATH: ['Label', 1, '原始数据集真值标签的加载路径(文件夹名)']
+  DATASET_STYLE: ['old_platform', 1, '数据集风格: old_platform(旧Lidar/Label结构) 或 hx_flat(HX扁平目录)']
+  ORI_DATA_PATH: ['Lidar', 1, '原始数据集加载路径(文件夹名), old_platform 模式下为点云目录, hx_flat 模式下为扁平根目录']
+  ORI_LABEL_PATH: ['Label', 1, '原始数据集真值标签的加载路径(文件夹名), hx_flat 模式下不使用单独标签目录']
   SAVE_DATA_PATH: ['data_preprocess', 1, '预处理后的文件保存路径(文件夹名),同时也是构建Dataset类(data_dataset.py)的文件输入路径,具体使用参见data_preprocessor.py和data_dataset.py中的注释']
+  COUNT_LIDAR_POINTS: [True, 1, '是否统计每个gt框内点数，关闭后将写入占位值以提速预处理']
+  CLASS_MAPPING:
+    Pedestrian: ['Pedestrian', 1, 'HX原始类别到训练类别的映射']
+    Bicycle: ['Mbike', 1, 'HX原始类别到训练类别的映射']
+    Car: ['Car', 1, 'HX原始类别到训练类别的映射']
+    Heavy Truck: ['Bus', 1, 'HX原始类别到训练类别的映射']
+    Bus: ['Bus', 1, 'HX原始类别到训练类别的映射']
   ROI:
     X_MIN: [ -102.4, 2, 'x_min']
     Y_MIN: [ -51.2, 2, 'y_min']

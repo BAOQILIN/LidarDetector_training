@@ -14,7 +14,7 @@ class Deblock(nn.Module):
                                        nn.BatchNorm2d(filter_num, eps=1e-3, momentum=0.01),
                                        nn.ReLU())
         else:
-            stride = np.round(1 / upsample_stride).astype(np.int)
+            stride = np.round(1 / upsample_stride).astype(int)
             self.model = nn.Sequential(nn.Conv2d(input_channel,
                                                  filter_num,
                                                  stride, stride=stride,

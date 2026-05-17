@@ -105,13 +105,13 @@ import utils
 
 
 class model_computer(model_computer_base):
-    def __init__(self, params_dict, model_epoch_root, res_dict={}):
+    def __init__(self, params_dict, model_epoch_root, pretrained_path=None, res_dict=None):
         """
         函数头固定接口,不可增删改;函数体不可删改,可自定义增加内容
         params_dict: 解析algo_config.yaml中的['TRAIN_MODEL']部分得到的参数字典,具体内容用户可在该文件中自定义
         res_dict: res_dict['msg']是一个列表,列表中的每个元素均为字符串,用户通过向此列表中添加字符串,在前端页面打印相应的消息
         """
-        super().__init__(params_dict, model_epoch_root, res_dict={})
+        super().__init__(params_dict, model_epoch_root, res_dict={} if res_dict is None else res_dict)
 
     def _initial(self, epoch=None):
         """

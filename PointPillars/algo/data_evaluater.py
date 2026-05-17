@@ -129,7 +129,7 @@ class data_evaluater(data_evaluater_base):
             gt_box = gt_box[:cur_index]
             num_gt = gt_box.shape[0]
             if num_gt != 0:
-                gt_labels = self.class_names[(gt_box[:, -1] - 1).astype(np.int)][:, np.newaxis]
+                gt_labels = self.class_names[(gt_box[:, -1] - 1).astype(int)][:, np.newaxis]
                 cur_gt = np.concatenate([(np.ones([num_gt, 1]) * frame_ids[index].item()).astype(np.int16),
                                          -np.ones([num_gt, 1]).astype(np.int8),
                                          gt_labels,

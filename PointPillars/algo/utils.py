@@ -10,6 +10,30 @@ import numpy as np
 from numba import cuda
 
 
+def load_ascii_pcd_points(lidar_path):
+    data_line_index = None
+    with open(lidar_path, 'r', encoding='utf-8', errors='ignore') as f:
+        for index, line in enumerate(f):
+            if line.strip().lower().startswith('data '):
+                data_line_index = index
+                break
+    if data_line_index is None:
+        raise ValueError(f'PCD DATA header not found: {lidar_path}')
+
+    try:
+        points = np.loadtxt(lidar_path, skiprows=data_line_index + 1, dtype=np.float32)
+    except ValueError as exc:
+        raise ValueError(f'Failed to parse ASCII PCD: {lidar_path}') from exc
+
+    if points.size == 0:
+        raise ValueError(f'PCD contains no points: {lidar_path}')
+    if points.ndim == 1:
+        points = points.reshape(1, -1)
+    if points.shape[1] < 4:
+        raise ValueError(f'PCD has fewer than 4 columns: {lidar_path}')
+    return points[:, :4].astype(np.float32)
+
+
 def check_numpy_to_torch(x):
     if isinstance(x, np.ndarray):
         return torch.from_numpy(x).float(), True

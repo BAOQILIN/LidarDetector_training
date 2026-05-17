@@ -5,9 +5,9 @@ Created on Tue Sep 15 18:39:04 2020
 
 @author: lz
 """
+import gc
 import os
 import yaml
-import gc
 import torch
 import sys
 import time
@@ -66,19 +66,14 @@ class LidarDetector(object):
                                                                                 
                                                                    
         for epo in range(start_epoch, self.params_dict['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0]):
-            gc.collect()
-            torch.cuda.empty_cache()
-            self.res_dict['msg'].append("### %d/%d epoch ###" % (epo, self.params_dict['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0]))
-            self.train_one_epoch()
-            gc.collect()
-            torch.cuda.empty_cache()
+            total_epochs = self.params_dict['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0]
+            self.res_dict['msg'].append(f'Train: epoch {epo + 1}/{total_epochs} start')
+            self.train_one_epoch(epo, total_epochs)
 
             self.model_component.loss_computer.save()
             self.model_component.save_model_torch(epo)
-            
-            self.test_one_epoch(test_type='eva_vali')
-            gc.collect()
-            torch.cuda.empty_cache()
+
+            self.test_one_epoch(test_type='eva_vali', epoch_index=epo, total_epochs=total_epochs)
 
             if self.check_flag:
                 break
@@ -125,78 +120,83 @@ class LidarDetector(object):
     def save_onnx_epoch(self, epoch):
         self.model_component.model_computer.save_model_params_onnx(epoch)
     
-    def train_one_epoch(self):
+    def train_one_epoch(self, epoch_index, total_epochs):
         self.model_component.model_computer.model.train()
-        
+
         if self.params_dict['TRAIN']['MODEL']['FREEZE']['LAYER'][0]:
             self.model_component.model_computer.model_freeze(self.params_dict['TRAIN']['MODEL']['FREEZE']['LAYER_NAMES'][0])
-    
+
         self.data_component.data_loader.initial('train')
-        
-        self.res_dict['msg'].append("lr: %.6f" % (self.model_component.optimizer.param_groups[0]['lr']))
-                
+        total_iters = self.data_component.data_loader.dataset_length['train']
+        print_gap = self.params_dict['TRAIN']['CTRL']['LOSS']['PRINT_GAP'][0]
+        iter_start_time = time.time()
+
         for inputs, labels, filenames, idx in self.data_component.data_loader:
-            gc.collect()
-            torch.cuda.empty_cache()
-            if idx % self.params_dict['TRAIN']['CTRL']['LOSS']['PRINT_GAP'][0] == 0:
-                self.res_dict['msg'].append("%d/%d losses: " % (idx, self.data_component.data_loader.dataset_length['train']))
-            
+            data_ready_time = time.time()
             self.model_component.optimizer.zero_grad()
-            time.sleep(0.05)
             outputs = self.model_component.model_computer.model_compute(inputs)
-            loss = self.model_component.loss_computer.loss_compute(outputs, labels, idx % self.params_dict['TRAIN']['CTRL']['LOSS']['PRINT_GAP'][0] == 0)
+            loss = self.model_component.loss_computer.loss_compute(outputs, labels, idx % print_gap == 0)
 
             if loss == 0:
+                iter_start_time = time.time()
                 continue
-            
+
             loss.backward()
-            
             self.model_component.optimizer.step()
             if isinstance(self.model_component.scheduler, torch.optim.lr_scheduler.OneCycleLR):
                 self.model_component.scheduler.step()
-                if idx % self.params_dict['TRAIN']['CTRL']['LOSS']['PRINT_GAP'][0] == 0:
-                    self.res_dict['msg'].append("%d/%d lr: %.6f " % (idx, self.data_component.data_loader.dataset_length['train'],
-                                                                     self.model_component.optimizer.param_groups[0]['lr']))
-                    print("%d/%d lr: %.6f " % (idx, self.data_component.data_loader.dataset_length['train'],
-                                                                     self.model_component.optimizer.param_groups[0]['lr']))
 
-            gc.collect()
-            torch.cuda.empty_cache()
+            if idx % print_gap == 0:
+                metrics = self.model_component.loss_computer.latest_metrics
+                batch_end_time = time.time()
+                data_time = data_ready_time - iter_start_time
+                batch_time = batch_end_time - iter_start_time
+                log_line = (
+                    f'Train: epoch {epoch_index + 1}/{total_epochs}, '
+                    f'iter {idx}/{total_iters}, '
+                    f'lr {self.model_component.optimizer.param_groups[0]["lr"]:.6f}, '
+                    f'loss {metrics.get("total_loss", 0.0):.4f}, '
+                    f'cls {metrics.get("cls_loss", 0.0):.4f}, '
+                    f'reg {metrics.get("reg_loss", 0.0):.4f}, '
+                    f'data_time {data_time:.3f}s, '
+                    f'batch_time {batch_time:.3f}s'
+                )
+                self.res_dict['msg'].append(log_line)
+                print(log_line)
 
-            if self.check_flag: 
+            iter_start_time = time.time()
+
+            if self.check_flag:
                 break
 
         if not isinstance(self.model_component.scheduler, torch.optim.lr_scheduler.OneCycleLR):
             self.model_component.scheduler.step()
         
-    def test_one_epoch(self, test_type='eva_vali', save=True):
+    def test_one_epoch(self, test_type='eva_vali', save=True, epoch_index=None, total_epochs=None):
         self.model_component.model_computer.model.eval()
-        
-        print("########## evaluate in %s ##########" % test_type)
-        self.res_dict['msg'].append("########## evaluate in %s ##########" % (test_type))
-        
+
+        eval_prefix = f'Eval: epoch {epoch_index + 1}/{total_epochs}, ' if epoch_index is not None and total_epochs is not None else 'Eval: '
+        eval_start = time.time()
+        eval_banner = f'{eval_prefix}stage {test_type} start'
+        print(eval_banner)
+        self.res_dict['msg'].append(eval_banner)
+
         self.data_component.data_loader.initial(test_type)
-        
         self.data_component.data_evaluater.initial()
-        
+
         with torch.no_grad():
             for inputs, labels, filenames, idx in self.data_component.data_loader:
-                gc.collect()
-                torch.cuda.empty_cache()
-                time.sleep(0.05)
                 outputs = self.model_component.model_computer.model_compute(inputs)
                 self.data_component.data_evaluater.record(outputs, labels)
-                gc.collect()
-                torch.cuda.empty_cache()
-
                 if self.check_flag:
                     break
-            
+
         self.data_component.data_evaluater.evaluate()
         if save:
             self.data_component.data_evaluater.save()
-        
-        print('############### end ###############')
-        self.res_dict['msg'].append("############### end ###############")
+
+        eval_summary = f'{eval_prefix}stage {test_type} done, elapsed {time.time() - eval_start:.3f}s'
+        print(eval_summary)
+        self.res_dict['msg'].append(eval_summary)
 
 

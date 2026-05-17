@@ -88,7 +88,7 @@ class dataset(data.Dataset):
         if self.prefix == self.params_dict['TRAIN']['OVERALL']['TRAIN_PREFIX'][0]\
                 and self.params_dict['TRAIN']['CTRL']['AUGMENT']['FILTER_MIN_POINTS'][0]:
 
-            min_points_dict = self.param_dict['TRAIN']['CTRL']['AUGMENT']['MIN_POINTS_NUM'][0]
+            min_points_dict = self.params_dict['TRAIN']['CTRL']['AUGMENT']['MIN_POINTS_NUM'][0]
             self.min_points_each_cls = []
             for cls in self.class_names:
                 self.min_points_each_cls.append(min_points_dict[cls.upper()][0])
@@ -126,7 +126,7 @@ class dataset(data.Dataset):
             num_lidar_pts = sample['num_lidar_pts']
             # scene_name = sample['scene']  # 新属性,结合extract_minor_cls一起使用
 
-            points = pd.read_csv(lidar_points_path, skiprows=11, header=None, sep=' ').values.astype(np.float32)
+            points = load_ascii_pcd_points(lidar_points_path)
             # lidar_points_path = os.path.join(r'D:/HBOX_Project/pointpillars_training/training_dataset/rectify_dataset', lidar_points_path)
             # points = np.fromfile(lidar_points_path, dtype=np.float32).reshape(-1, 4)
 

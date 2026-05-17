@@ -68,6 +68,7 @@ class loss_computer(loss_computer_base):
         self.pos_cls_weight = self.params_dict['TRAIN']['CTRL']['LOSS']['POS_CLS_WEIGHT'][0]
         self.neg_cls_weight = self.params_dict['TRAIN']['CTRL']['LOSS']['NEG_CLS_WEIGHT'][0]
         self.head_weights = [0.3, 1.0, 1.0, 1.0, 1.0]
+        self.latest_metrics = {}
 
         self.params_dict_copy = copy.deepcopy(self.params_dict)
         bbox_generator = utils.BboxGenerator(self.params_dict_copy)
@@ -209,6 +210,14 @@ class loss_computer(loss_computer_base):
         self.class_losses_pos.append(cls_losses_pos.item())
         self.box_losses.append(box_losses.item())
         self.total_losses.append(total_losses.item())
+        self.latest_metrics = {
+            'total_loss': float(total_losses.item()),
+            'cls_loss': float(cls_losses.item()),
+            'reg_loss': float(box_losses.item()),
+            'cls_pos_loss': float(cls_losses_pos.item()),
+            'type_cls_loss': [float(type_cls_loss.item()) for type_cls_loss in cls_losses_list],
+            'type_reg_loss': [float(type_reg_loss.item()) for type_reg_loss in box_losses_list],
+        }
 
         if record:
             self.loss_record.append([np.mean(self.type_cls_losses, axis=0).tolist(),
@@ -217,7 +226,14 @@ class loss_computer(loss_computer_base):
                                      np.mean(self.box_losses),
                                      np.mean(self.total_losses),
                                      np.mean(self.class_losses_pos)])
-            self.res_dict['msg'].append(self.loss_record[-1])
+            self.latest_metrics = {
+                'total_loss': float(np.mean(self.total_losses)),
+                'cls_loss': float(np.mean(self.class_losses)),
+                'reg_loss': float(np.mean(self.box_losses)),
+                'cls_pos_loss': float(np.mean(self.class_losses_pos)),
+                'type_cls_loss': np.mean(self.type_cls_losses, axis=0).tolist(),
+                'type_reg_loss': np.mean(self.type_reg_losses, axis=0).tolist(),
+            }
 
             self._loss_initial()
 

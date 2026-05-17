@@ -7,6 +7,7 @@ Created on Tue Sep 15 18:39:04 2020
 """
 import gc
 import os
+from datetime import datetime
 import yaml
 import torch
 import sys
@@ -51,8 +52,9 @@ class LidarDetector(object):
         start_epoch = 0
 
         if self.params_dict['TRAIN']['CTRL']['CTRL_']['SCHEDULER_TYPE'][0] == 'OneCycleLR':
-            total_iters = self.params_dict['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0] * self.data_component.data_loader.dataset['train'].num_batch
-            last_step = start_epoch * self.data_component.data_loader.dataset['train'].num_batch - 1 if start_epoch != 0 else -1
+            train_batches = len(self.data_component.data_loader.loaders['train'])
+            total_iters = self.params_dict['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0] * train_batches
+            last_step = start_epoch * train_batches - 1 if start_epoch != 0 else -1
             if last_step != -1:
                 self.model_component.optimizer.param_groups[0]['initial_lr'] = 1e-4
                 self.model_component.optimizer.param_groups[0]['max_lr'] = 0.001
@@ -65,15 +67,20 @@ class LidarDetector(object):
                                                                                  div_factor=10, final_div_factor=1e4)
                                                                                 
                                                                    
+        eval_every_epochs = self.params_dict['TRAIN']['CTRL']['CTRL_'].get('EVAL_EVERY_EPOCHS', [1])[0]
         for epo in range(start_epoch, self.params_dict['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0]):
             total_epochs = self.params_dict['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0]
-            self.res_dict['msg'].append(f'Train: epoch {epo + 1}/{total_epochs} start')
+            epoch_start_line = self._timestamped(f'Train: epoch {epo + 1}/{total_epochs} start')
+            self.res_dict['msg'].append(epoch_start_line)
+            print(epoch_start_line)
             self.train_one_epoch(epo, total_epochs)
 
             self.model_component.loss_computer.save()
             self.model_component.save_model_torch(epo)
 
-            self.test_one_epoch(test_type='eva_vali', epoch_index=epo, total_epochs=total_epochs)
+            should_eval = ((epo + 1) % max(1, eval_every_epochs) == 0) or self.check_flag or (epo + 1 == total_epochs)
+            if should_eval:
+                self.test_one_epoch(test_type='eva_vali', epoch_index=epo, total_epochs=total_epochs)
 
             if self.check_flag:
                 break
@@ -85,7 +92,7 @@ class LidarDetector(object):
             gc.collect()
             torch.cuda.empty_cache()
             self.model_component.model_computer.load_model_params_torch(epo)
-            self.res_dict['msg'].append("evaluate result of %d epoch" % epo)
+            self.res_dict['msg'].append(self._timestamped("evaluate result of %d epoch" % epo))
 
             self.test_one_epoch(test_type='eva_test', save=save)
             gc.collect()
@@ -94,12 +101,12 @@ class LidarDetector(object):
     def predict(self, predictions_root, epoch_id):
         gc.collect()
         torch.cuda.empty_cache()
-        self.res_dict['msg'].append('predict the result of %d epoch' % epoch_id)
+        self.res_dict['msg'].append(self._timestamped('predict the result of %d epoch' % epoch_id))
         predictor = Predictor(self.get_model(epoch_id), self.get_dataloader(), self.data_root, 
                               predictions_root, self.params_dict, self.check_flag, self.res_dict)
         predictor.Predict()         
-        self.res_dict['msg'].append("############### Prediction End ###############")
-        self.res_dict['msg'].append("############### Prediction End ###############")
+        self.res_dict['msg'].append(self._timestamped("############### Prediction End ###############"))
+        self.res_dict['msg'].append(self._timestamped("############### Prediction End ###############"))
         gc.collect()
         torch.cuda.empty_cache()
     
@@ -119,7 +126,22 @@ class LidarDetector(object):
         
     def save_onnx_epoch(self, epoch):
         self.model_component.model_computer.save_model_params_onnx(epoch)
-    
+
+    @staticmethod
+    def _move_to_device(data):
+        if isinstance(data, list):
+            return [LidarDetector._move_to_device(item) for item in data]
+        if isinstance(data, tuple):
+            return tuple(LidarDetector._move_to_device(item) for item in data)
+        if torch.is_tensor(data) and torch.cuda.is_available():
+            return data.cuda(non_blocking=True)
+        return data
+
+    @staticmethod
+    def _timestamped(message):
+        timestamp = datetime.now().strftime('%Y-%m-%d-%H:%M:%S:%f')[:-3]
+        return f'[{timestamp}] {message}'
+
     def train_one_epoch(self, epoch_index, total_epochs):
         self.model_component.model_computer.model.train()
 
@@ -127,30 +149,34 @@ class LidarDetector(object):
             self.model_component.model_computer.model_freeze(self.params_dict['TRAIN']['MODEL']['FREEZE']['LAYER_NAMES'][0])
 
         self.data_component.data_loader.initial('train')
-        total_iters = self.data_component.data_loader.dataset_length['train']
+        total_iters = len(self.data_component.data_loader.loaders['train'])
         print_gap = self.params_dict['TRAIN']['CTRL']['LOSS']['PRINT_GAP'][0]
-        iter_start_time = time.time()
+        data_wait_start = time.time()
 
         for inputs, labels, filenames, idx in self.data_component.data_loader:
             data_ready_time = time.time()
+            inputs = self._move_to_device(inputs)
+            labels = self._move_to_device(labels)
             self.model_component.optimizer.zero_grad()
-            outputs = self.model_component.model_computer.model_compute(inputs)
-            loss = self.model_component.loss_computer.loss_compute(outputs, labels, idx % print_gap == 0)
+            with torch.amp.autocast('cuda', enabled=torch.cuda.is_available()):
+                outputs = self.model_component.model_computer.model_compute(inputs)
+                loss = self.model_component.loss_computer.loss_compute(outputs, labels, idx % print_gap == 0)
 
             if loss == 0:
-                iter_start_time = time.time()
+                data_wait_start = time.time()
                 continue
 
-            loss.backward()
-            self.model_component.optimizer.step()
+            self.model_component.grad_scaler.scale(loss).backward()
+            self.model_component.grad_scaler.step(self.model_component.optimizer)
+            self.model_component.grad_scaler.update()
             if isinstance(self.model_component.scheduler, torch.optim.lr_scheduler.OneCycleLR):
                 self.model_component.scheduler.step()
 
             if idx % print_gap == 0:
                 metrics = self.model_component.loss_computer.latest_metrics
                 batch_end_time = time.time()
-                data_time = data_ready_time - iter_start_time
-                batch_time = batch_end_time - iter_start_time
+                data_time = data_ready_time - data_wait_start
+                batch_time = batch_end_time - data_ready_time
                 log_line = (
                     f'Train: epoch {epoch_index + 1}/{total_epochs}, '
                     f'iter {idx}/{total_iters}, '
@@ -161,10 +187,11 @@ class LidarDetector(object):
                     f'data_time {data_time:.3f}s, '
                     f'batch_time {batch_time:.3f}s'
                 )
-                self.res_dict['msg'].append(log_line)
-                print(log_line)
+                timestamped_line = self._timestamped(log_line)
+                self.res_dict['msg'].append(timestamped_line)
+                print(timestamped_line)
 
-            iter_start_time = time.time()
+            data_wait_start = time.time()
 
             if self.check_flag:
                 break
@@ -177,7 +204,7 @@ class LidarDetector(object):
 
         eval_prefix = f'Eval: epoch {epoch_index + 1}/{total_epochs}, ' if epoch_index is not None and total_epochs is not None else 'Eval: '
         eval_start = time.time()
-        eval_banner = f'{eval_prefix}stage {test_type} start'
+        eval_banner = self._timestamped(f'{eval_prefix}stage {test_type} start')
         print(eval_banner)
         self.res_dict['msg'].append(eval_banner)
 
@@ -186,7 +213,10 @@ class LidarDetector(object):
 
         with torch.no_grad():
             for inputs, labels, filenames, idx in self.data_component.data_loader:
-                outputs = self.model_component.model_computer.model_compute(inputs)
+                inputs = self._move_to_device(inputs)
+                labels = self._move_to_device(labels)
+                with torch.amp.autocast('cuda', enabled=torch.cuda.is_available()):
+                    outputs = self.model_component.model_computer.model_compute(inputs)
                 self.data_component.data_evaluater.record(outputs, labels)
                 if self.check_flag:
                     break
@@ -195,7 +225,7 @@ class LidarDetector(object):
         if save:
             self.data_component.data_evaluater.save()
 
-        eval_summary = f'{eval_prefix}stage {test_type} done, elapsed {time.time() - eval_start:.3f}s'
+        eval_summary = self._timestamped(f'{eval_prefix}stage {test_type} done, elapsed {time.time() - eval_start:.3f}s')
         print(eval_summary)
         self.res_dict['msg'].append(eval_summary)
 

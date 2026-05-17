@@ -41,6 +41,16 @@ class Predictor(object):
 
         self.data_postprocessor = data_postprocessor.data_postprocessor(self.label_template_path, self.params_dict)
 
+    @staticmethod
+    def _move_to_device(data):
+        if isinstance(data, list):
+            return [Predictor._move_to_device(item) for item in data]
+        if isinstance(data, tuple):
+            return tuple(Predictor._move_to_device(item) for item in data)
+        if torch.is_tensor(data) and torch.cuda.is_available():
+            return data.cuda(non_blocking=True)
+        return data
+
     def Predict(self):
         if not os.path.exists(self.predictions_root):
             os.makedirs(self.predictions_root)
@@ -50,8 +60,9 @@ class Predictor(object):
             print('Starting predicting data, it may take several minutes...')
             self.res_dict['msg'].append('Starting predicting data, it may take several minutes...')
             for inputs, labels, filenames, idx in self.data_loader:  ## for each batch
-                time.sleep(0.05)
-                outputs = self.model(inputs)
+                inputs = self._move_to_device(inputs)
+                with torch.amp.autocast('cuda', enabled=torch.cuda.is_available()):
+                    outputs = self.model(inputs)
                 predictions, filenames = self.data_postprocessor.data_postprocess(outputs, filenames)
 
                 for prediction, filename in zip(predictions, filenames):

@@ -55,9 +55,15 @@ TRAIN_MODEL:
         SCHEDULER_STEP: [1, 2, 'torch.optim.lr_scheduler.StepLR的step_size参数']
         SCHEDULER_GAMMA: [0.9, 2, 'torch.optim.lr_scheduler.StepLR的gamma参数']
         SCHEDULER_WARMUP_STEPS: [25, 2, 'warmup模式下生效,学习率以线性变化在scheduler_warmup_steps时达到optimizer_lr, 1step代表 1epoch']
+        EVAL_EVERY_EPOCHS: [1, 2, '每隔多少个epoch做一次验证']
+        USE_MULTI_GPU: [False, 1, '是否启用多GPU训练(DataParallel)']
       DATA:
         BATCH_SIZE: [1, 2, '单个batch中的样本数量']
         RESAMPLING: [True, 2, '是否进行重采样']
+        NUM_WORKERS: [0, 1, '训练数据加载进程数']
+        PIN_MEMORY: [False, 1, '是否启用 pin_memory']
+        PERSISTENT_WORKERS: [False, 1, '是否复用 worker']
+        PREFETCH_FACTOR: [2, 1, 'DataLoader 预取因子']
         ROI:
           X_MIN: [-102.4, 2, '']
           Y_MIN: [-51.2, 2, '']

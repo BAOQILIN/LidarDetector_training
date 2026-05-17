@@ -15,6 +15,7 @@ Created on Wed Sep 16 19:08:51 2020
 """
 from importlib import reload
 import os
+import torch
 import torch.optim as optim
 import model_computers
 import loss_computers
@@ -37,6 +38,7 @@ class model_components(object):
         self.__initial_loss()
         self.__initial_model()
         self.__initial_model_controller()
+        self.grad_scaler = torch.amp.GradScaler('cuda', enabled=torch.cuda.is_available())
     
     def save_model_torch(self, epoch):
         self.model_computer.save_model_params_torch(epoch)
@@ -61,4 +63,7 @@ class model_components(object):
 
     def __initial_model(self):
         self.model_computer = model_computers.model_computer(self.params_dict.copy(), self.model_epoch_root, self.pretrained_path, res_dict=self.res_dict)
+        use_multi_gpu = self.params_dict['TRAIN']['CTRL']['CTRL_'].get('USE_MULTI_GPU', [False])[0]
+        if use_multi_gpu and torch.cuda.is_available() and torch.cuda.device_count() > 1:
+            self.model_computer.model = torch.nn.DataParallel(self.model_computer.model)
         

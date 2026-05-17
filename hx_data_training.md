@@ -501,250 +501,25 @@ PY
 
 当前仓库里的 `PointPillars/algo/algo_config.yaml` 已经支持 HX 模式，但默认值还是旧平台路径语义。
 
-正式跑 HX 时，关键配置建议为：
-
-```yaml
-PREPROCESS:
-  DATASET_STYLE: ['hx_flat', 1, '数据集风格']
-  ORI_DATA_PATH: ['origin_type', 1, 'HX 扁平原始数据目录']
-  SAVE_DATA_PATH: ['hx_preprocess', 1, '预处理输出目录']
-```
-
-类别映射保持为：
-
-```yaml
-CLASS_MAPPING:
-  Pedestrian: ['Pedestrian', 1, '']
-  Bicycle: ['Mbike', 1, '']
-  Car: ['Car', 1, '']
-  Heavy Truck: ['Bus', 1, '']
-  Bus: ['Bus', 1, '']
-```
-
-如果你不想覆盖原配置，建议使用专门的 HX 配置文件：
+正式跑 HX 时，推荐直接使用：
 
 ```text
 PointPillars/algo/algo_config_hx.yaml
 ```
 
+这份配置已经包含：
+
+- HX 扁平目录模式
+- 类别映射
+- 关闭点数统计
+- 开启多进程预处理
+- 训练 DataLoader 参数
+
 ---
 
 #### Step 3：执行 HX 数据预处理
 
-命令如下：
-
-```bash
-python - <<'PY'
-import os
-import sys
-import yaml
-
-repo = '/home/bql/ARS/ARS_Project/Web_LidarDetector_test'
-data_root = '/home/bql/ARS/ARS_Data/ars_hx_train_data'
-
-sys.path.insert(0, os.path.join(repo, 'PointPillars/algo'))
-from data_preprocessor import DataPreprocessor
-
-cfg_path = os.path.join(repo, 'PointPillars/algo/algo_config_hx.yaml')
-with open(cfg_path, encoding='utf-8') as f:
-    cfg = yaml.load(f, Loader=yaml.FullLoader)
-
-params = cfg['PREPROCESS']
-res = {'msg': []}
-pre = DataPreprocessor(params, data_root, train_flag=True, test_flag=False, res_dict=res)
-pre.data_preprocess()
-print('\n'.join(str(x) for x in res['msg']))
-PY
-```
-
-执行成功后，你应该能看到：
-
-```text
-/home/bql/ARS/ARS_Data/ars_hx_train_data/hx_preprocess/
-├── training.pkl
-└── validation.pkl
-```
-
-如果要生成测试集或预测集 pickle，则分别改成：
-
-##### 生成 testing.pkl
-
-```bash
-python - <<'PY'
-import os
-import sys
-import yaml
-
-repo = '/home/bql/ARS/ARS_Project/Web_LidarDetector_test'
-data_root = '/home/bql/ARS/ARS_Data/ars_hx_train_data'
-
-sys.path.insert(0, os.path.join(repo, 'PointPillars/algo'))
-from data_preprocessor import DataPreprocessor
-
-cfg_path = os.path.join(repo, 'PointPillars/algo/algo_config_hx.yaml')
-with open(cfg_path, encoding='utf-8') as f:
-    cfg = yaml.load(f, Loader=yaml.FullLoader)
-
-params = cfg['PREPROCESS']
-res = {'msg': []}
-pre = DataPreprocessor(params, data_root, train_flag=False, test_flag=True, res_dict=res)
-pre.data_preprocess()
-print('\n'.join(str(x) for x in res['msg']))
-PY
-```
-
-##### 生成 prediction.pkl
-
-```bash
-python - <<'PY'
-import os
-import sys
-import yaml
-
-repo = '/home/bql/ARS/ARS_Project/Web_LidarDetector_test'
-data_root = '/home/bql/ARS/ARS_Data/ars_hx_train_data'
-
-sys.path.insert(0, os.path.join(repo, 'PointPillars/algo'))
-from data_preprocessor import DataPreprocessor
-
-cfg_path = os.path.join(repo, 'PointPillars/algo/algo_config_hx.yaml')
-with open(cfg_path, encoding='utf-8') as f:
-    cfg = yaml.load(f, Loader=yaml.FullLoader)
-
-params = cfg['PREPROCESS']
-res = {'msg': []}
-pre = DataPreprocessor(params, data_root, train_flag=False, test_flag=False, res_dict=res)
-pre.data_preprocess()
-print('\n'.join(str(x) for x in res['msg']))
-PY
-```
-
----
-
-#### Step 4：训练前做数据加载冒烟验证
-
-建议先验证训练集能否正常取出 batch：
-
-```bash
-python - <<'PY'
-import os
-import sys
-import yaml
-
-repo = '/home/bql/ARS/ARS_Project/Web_LidarDetector_test'
-preprocess_dir = '/home/bql/ARS/ARS_Data/ars_hx_train_data/hx_preprocess'
-
-sys.path.insert(0, os.path.join(repo, 'PointPillars/algo'))
-from data_dataset import dataset
-
-cfg_path = os.path.join(repo, 'PointPillars/algo/algo_config_hx.yaml')
-with open(cfg_path, encoding='utf-8') as f:
-    cfg = yaml.load(f, Loader=yaml.FullLoader)
-
-train_params = cfg['TRAIN_MODEL']
-ds = dataset(train_params, preprocess_dir, train_params['TRAIN']['OVERALL']['TRAIN_PREFIX'][0], {'msg': []})
-inputs, labels, filenames = ds[0]
-print(inputs[0].shape, inputs[1].shape, inputs[2].shape)
-print(labels[0].shape)
-print(len(filenames))
-PY
-```
-
-如果这一步通过，说明：
-
-- pickle 合同正确
-- PCD 读取正常
-- voxelize 正常
-- 类别映射未越界
-
----
-
-#### Step 5：训练 1 个 epoch 冒烟
-
-下面是推荐的最小训练冒烟命令：
-
-```bash
-python - <<'PY'
-import os
-import sys
-import yaml
-
-repo = '/home/bql/ARS/ARS_Project/Web_LidarDetector_test'
-data_root = '/home/bql/ARS/ARS_Data/ars_hx_train_data'
-result_root = '/home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result'
-model_epoch_root = os.path.join(result_root, 'model_epoch')
-
-sys.path.insert(0, os.path.join(repo, 'PointPillars/algo'))
-sys.path.insert(0, os.path.join(repo, 'PointPillars/model/model'))
-sys.path.insert(0, os.path.join(repo, 'PointPillars/model/layer'))
-sys.path.insert(0, os.path.join(repo, 'web_lidardetector'))
-
-from interface import ITrain
-
-cfg_path = os.path.join(repo, 'PointPillars/algo/algo_config_hx.yaml')
-with open(cfg_path, encoding='utf-8') as f:
-    cfg = yaml.load(f, Loader=yaml.FullLoader)
-
-train_cfg = cfg['TRAIN_MODEL']
-train_cfg['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0] = 1
-train_cfg['TRAIN']['CTRL']['DATA']['BATCH_SIZE'][0] = 1
-train_cfg['TRAIN']['OVERALL']['INITIAL_RESULT'][0] = True
-
-res = {'msg': []}
-ITrain(train_cfg, data_root, result_root, model_epoch_root, pretrained_path=None, check_flag=True, res_dict=res)
-print('\n'.join(str(x) for x in res['msg'][-20:]))
-PY
-```
-
-说明：
-
-- `check_flag=True`：当前代码里会在训练和验证阶段尽快提前 break，适合做冒烟
-- `EPOCH_NUM=1`：只验证链路是否跑通
-- `BATCH_SIZE=1`：减少显存和排障成本
-
----
-
-### 19. 当前我实际验证到哪一步了
-
-我已经实际验证通过：
-
-1. HX 小样本预处理可运行
-2. 可生成 `training.pkl` / `validation.pkl`
-3. `data_dataset.py` 可读取这些 pickle
-4. 能成功构造一个训练 batch
-5. 已成功跑通 1 个最小训练冒烟
-
----
-
-### 20. 推荐的正式执行顺序
-
-建议你后续正式跑的时候按这个顺序：
-
-1. 确认依赖
-   - `pip install munkres`
-2. 使用专门的 HX 配置
-3. 先跑预处理
-4. 再跑数据加载冒烟
-5. 再跑 1 epoch 训练冒烟
-6. 最后再跑正式训练
-
----
-
-### 21. 后续如果需要进一步自动化
-
-如果后面你希望流程更顺一些，建议再做两件事：
-
-1. 增加一份专门的 HX 配置文件
-   - `PointPillars/algo/algo_config_hx.yaml`
-2. 增加一个 Linux 友好的入口脚本
-   - `scripts/run_hx_preprocess.py`
-   - `scripts/run_hx_train.py`
-
-现在这两件事都已经完成，所以后续可以直接用脚本运行，不需要每次都写 heredoc Python 命令。
-
-#### 21.1 使用脚本执行 HX 预处理
-
-生成训练/验证集：
+推荐直接使用脚本：
 
 ```bash
 python scripts/run_hx_preprocess.py \
@@ -771,23 +546,47 @@ python scripts/run_hx_preprocess.py \
   --mode predict
 ```
 
-#### 21.2 使用脚本执行 HX 训练
+---
 
-先确保已经完成训练模式预处理，并且目录下存在：
+#### Step 4：训练前做数据加载冒烟验证
 
-- `hx_preprocess/training.pkl`
-- `hx_preprocess/validation.pkl`
-
-执行正式训练：
+建议先验证训练集能否正常取出 batch：
 
 ```bash
-python scripts/run_hx_train.py \
-  --data-root /home/bql/ARS/ARS_Data/ars_hx_train_data \
-  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
-  --config PointPillars/algo/algo_config_hx.yaml
+python - <<'PY'
+import os
+import sys
+import yaml
+
+repo = '/home/bql/ARS/ARS_Project/Web_LidarDetector_test'
+preprocess_dir = '/home/bql/ARS/ARS_Data/ars_hx_train_data/hx_preprocess'
+
+sys.path.insert(0, os.path.join(repo, 'PointPillars/algo'))
+from data_dataset import dataset
+
+cfg_path = os.path.join(repo, 'PointPillars/algo/algo_config_hx.yaml')
+with open(cfg_path, encoding='utf-8') as f:
+    cfg = yaml.safe_load(f)
+
+train_params = cfg['TRAIN_MODEL']
+ds = dataset(train_params, preprocess_dir, train_params['TRAIN']['OVERALL']['TRAIN_PREFIX'][0], {'msg': []})
+sample = ds[0]
+print(sample['voxels'].shape, sample['gt_boxes'].shape, sample['filename'])
+PY
 ```
 
-执行 1 epoch 冒烟训练：
+如果这一步通过，说明：
+
+- pickle 合同正确
+- PCD 读取正常
+- voxelize 正常
+- 类别映射未越界
+
+---
+
+#### Step 5：训练 1 个 epoch 冒烟
+
+推荐直接使用脚本：
 
 ```bash
 python scripts/run_hx_train.py \
@@ -797,7 +596,16 @@ python scripts/run_hx_train.py \
   --smoke
 ```
 
-也可以临时覆盖 epoch 或 batch size：
+正式训练：
+
+```bash
+python scripts/run_hx_train.py \
+  --data-root /home/bql/ARS/ARS_Data/ars_hx_train_data \
+  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
+  --config PointPillars/algo/algo_config_hx.yaml
+```
+
+临时覆盖 epoch 或 batch size：
 
 ```bash
 python scripts/run_hx_train.py \
@@ -810,9 +618,46 @@ python scripts/run_hx_train.py \
 
 ---
 
-### 22. 实际冒烟验证结果（已完成）
+### 19. 当前我实际验证到哪一步了
 
-我已经在当前 Linux 环境里完成了真实冒烟验证，分两步：
+我已经实际验证通过：
+
+1. HX 小样本预处理可运行
+2. 可生成 `training.pkl` / `validation.pkl`
+3. `data_dataset.py` 可读取这些 pickle
+4. 能成功构造训练 sample / batch
+5. 已成功跑通 1 个最小训练冒烟
+6. 已成功跑通 DataLoader 版训练冒烟
+
+---
+
+### 20. 推荐的正式执行顺序
+
+建议你后续正式跑的时候按这个顺序：
+
+1. 确认依赖
+   - `pip install munkres`
+2. 使用专门的 HX 配置
+3. 先跑预处理
+4. 再跑数据加载冒烟
+5. 再跑 1 epoch 训练冒烟
+6. 最后再跑正式训练
+
+---
+
+### 21. 脚本与自动化
+
+现在已经新增：
+
+- `PointPillars/algo/algo_config_hx.yaml`
+- `scripts/run_hx_preprocess.py`
+- `scripts/run_hx_train.py`
+
+后续可以直接复用，不需要每次都手写 heredoc Python 命令。
+
+---
+
+### 22. 实际冒烟验证结果（已完成）
 
 #### 22.1 HX 预处理小样本冒烟
 
@@ -823,11 +668,11 @@ python scripts/run_hx_train.py \
   - `training.pkl`
   - `validation.pkl`
 - `data_dataset.py` 成功读取这些 pickle
-- 成功构造训练 batch 并完成 voxelize
+- 成功构造训练 batch / sample 并完成 voxelize
 
 #### 22.2 HX 训练小样本冒烟
 
-在安装 `munkres` 后，我又继续跑了 1 个最小训练冒烟：
+在安装 `munkres` 后，我继续跑了 1 个最小训练冒烟：
 
 - 训练成功进入第 1 个 batch
 - 成功完成一次 loss 计算和学习率更新
@@ -846,19 +691,30 @@ python scripts/run_hx_train.py \
 - `No prediction, Evaluation Done!`
 - `############### end ###############`
 
-说明：
+#### 22.3 关闭点数统计后的预处理提速
 
-- 这次冒烟使用的是极小样本和 `check_flag=True`
-- 目标是验证 HX 数据链路、模型前向、loss、验证入口、模型保存能否跑通
-- **结论：当前 HX 非拷贝适配方案已经可以跑通最小训练链路**
-- 另外，现已增加 `COUNT_LIDAR_POINTS` 开关；在 HX 配置中默认关闭后，小样本预处理从约 `6s/8帧` 提升到约 `1.1s/8帧`，速度提升明显
-- 现已增加 `USE_MULTIPROCESS` 与 `NUM_WORKERS` 开关；在 16 帧、4 进程的小样本测试中，预处理耗时约 `0.595s`，多进程路径已验证可用
+- 新增 `COUNT_LIDAR_POINTS` 开关
+- HX 配置默认关闭
+- 小样本预处理从约 `6s/8帧` 提升到约 `1.1s/8帧`
+
+#### 22.4 多进程预处理验证
+
+- 新增 `USE_MULTIPROCESS` 与 `NUM_WORKERS`
+- 在 16 帧、4 进程测试中，预处理耗时约 `0.595s`
+- 多进程路径已验证可用
+
+#### 22.5 DataLoader 版训练验证
+
+- dataset 已改为 sample-level 语义
+- DataLoader 已替换原自定义同步 iterator
+- CPU → GPU 搬运已从 dataset 移到 train/eval/predict 流程中统一处理
+- DataLoader 模式下的训练冒烟已通过
 
 ---
 
 ### 23. 为了跑通冒烟，我顺手修复的旧代码问题
 
-在这次训练冒烟过程中，还暴露并修复了几处原仓库的兼容性问题：
+在这次训练冒烟和提速改造过程中，还暴露并修复了几处原仓库兼容性问题：
 
 1. `PointPillars/algo/model_computers.py`
    - 构造函数参数与调用方不匹配
@@ -873,4 +729,291 @@ python scripts/run_hx_train.py \
    - 同时还有 `astype(int16/int8)` 这种未定义类型名问题
    - 已修正为兼容的新写法
 
-这些修复并不是 HX 数据专属逻辑，但它们是当前环境下把训练冒烟真正跑通所必需的。
+4. `web_lidardetector/model_predict.py`
+   - 在 dataset 不再直接 `.cuda()` 后，prediction 路径补充了统一 device transfer
+
+5. `web_lidardetector/train_flow.py`
+   - 去掉了训练/验证中的 `sleep`
+   - 去掉了 batch 级别频繁 `gc.collect()` / `torch.cuda.empty_cache()`
+   - 训练日志改成更接近 OpenPCDet 的结构化单行输出
+
+---
+
+### 24. 第二批训练提速改造（已完成）
+
+#### 24.1 dataset 改成 sample-level 语义
+
+文件：
+
+- `PointPillars/algo/data_dataset.py`
+
+改动：
+
+- `__getitem__()` 现在返回单个 sample
+- `collate_batch()` 统一做 batch 拼装
+- 不再在 dataset 里动态修改 batch 大小
+
+#### 24.2 自定义同步加载器改成 PyTorch DataLoader
+
+文件：
+
+- `web_lidardetector/DataUtils/data_loader.py`
+
+改动：
+
+- 使用 `torch.utils.data.DataLoader`
+- 支持：
+  - `NUM_WORKERS`
+  - `PIN_MEMORY`
+  - `PERSISTENT_WORKERS`
+  - `PREFETCH_FACTOR`
+
+#### 24.3 GPU 数据搬运改到训练/验证/预测路径里统一处理
+
+文件：
+
+- `web_lidardetector/train_flow.py`
+- `web_lidardetector/model_predict.py`
+
+改动：
+
+- dataset 不再直接 `.cuda()`
+- 在 train/eval/predict 路径中统一做 `_move_to_device()`
+
+#### 24.4 OpenPCDet 风格训练日志
+
+文件：
+
+- `web_lidardetector/train_flow.py`
+- `PointPillars/algo/loss_computers.py`
+
+当前日志示例：
+
+```text
+Train: epoch 1/1, iter 1/11, lr 0.000279, loss 10.5113, cls 1.2481, reg 9.2632, data_time 1.863s, batch_time 2.362s
+Eval: epoch 1/1, stage eva_vali start
+Eval: epoch 1/1, stage eva_vali done, elapsed 1.892s
+```
+
+这已经明显比原始日志更接近 OpenPCDet 的输出方式。
+
+---
+
+### 25. 当前 HX 配置里的关键提速参数
+
+当前 `PointPillars/algo/algo_config_hx.yaml` 中，和性能相关的关键参数包括：
+
+```yaml
+PREPROCESS:
+  COUNT_LIDAR_POINTS: [False, ...]
+  USE_MULTIPROCESS: [True, ...]
+  NUM_WORKERS: [24, ...]
+
+TRAIN_MODEL:
+  TRAIN:
+    CTRL:
+      DATA:
+        NUM_WORKERS: [8, ...]
+        PIN_MEMORY: [True, ...]
+        PERSISTENT_WORKERS: [True, ...]
+        PREFETCH_FACTOR: [2, ...]
+```
+
+说明：
+
+- `PREPROCESS.NUM_WORKERS`：控制 HX 预处理进程数
+- `TRAIN_MODEL.TRAIN.CTRL.DATA.NUM_WORKERS`：控制训练阶段 DataLoader worker 数
+- 这两者不要混淆
+
+---
+
+### 26. 时间戳日志与混合精度（已完成）
+
+目前训练日志已经增加了毫秒级时间戳，格式为：
+
+```text
+[2026-05-17-22:23:48:113] Train: epoch 1/1, iter 1/5, lr 0.001000, loss 9.6422, cls 1.1970, reg 8.4453, data_time 1.662s, batch_time 2.106s
+```
+
+格式说明：
+
+- `年-月-日-时:分:秒:毫秒`
+- 即：`YYYY-MM-DD-HH:MM:SS:mmm`
+
+同时，当前训练/验证/预测路径已经启用混合精度：
+
+- 训练：autocast + GradScaler
+- 验证：autocast
+- 预测：autocast
+
+说明：
+
+- 在 CUDA 可用时自动启用 AMP
+- 之前这套训练默认是纯 FP32，现在已经切到支持混合精度的版本
+
+---
+
+### 27. 当前训练日志的推荐观察方式
+
+现在正式训练时，建议重点观察这些字段：
+
+- `iter x/y`
+- `lr`
+- `loss`
+- `cls`
+- `reg`
+- `data_time`
+- `batch_time`
+
+判断方法：
+
+1. 如果 `data_time` 明显接近或大于 `batch_time`
+   - 说明数据供给仍可能是瓶颈
+
+2. 如果 `batch_time` 大但 `data_time` 小
+   - 说明更多时间花在模型前向/反向本身
+
+3. 如果 GPU 利用率低且 `data_time` 高
+   - 说明数据加载、CPU 预处理或 I/O 更可能是瓶颈
+
+---
+
+### 28. 当前提速与训练链路改造总结
+
+到目前为止，HX 训练链路已经完成的关键性能与工程化改造包括：
+
+1. 预处理阶段
+   - 非拷贝模式
+   - 可关闭点数统计
+   - 多进程预处理
+
+2. 训练阶段
+   - 去掉 `sleep`
+   - 去掉 batch 级频繁 `gc.collect()` / `torch.cuda.empty_cache()`
+   - dataset 改为 sample-level
+   - 使用 `torch.utils.data.DataLoader`
+   - CPU → GPU 传输统一放到 train/eval/predict 入口
+   - 训练日志改成更接近 OpenPCDet 的结构化单行输出
+   - 已启用混合精度
+
+3. 工程化
+   - 已提供专用 HX 配置：`PointPillars/algo/algo_config_hx.yaml`
+   - 已提供脚本：
+     - `scripts/run_hx_preprocess.py`
+     - `scripts/run_hx_train.py`
+     - `scripts/run_hx_export_onnx.py`
+
+---
+
+### 29. 训练后的 `.torch` 如何导出为 ONNX
+
+当前训练保存的 checkpoint 在：
+
+```text
+<result-root>/model_epoch/PointPillars_<epoch>.torch
+```
+
+例如：
+
+```text
+/home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result/model_epoch/PointPillars_10.torch
+```
+
+仓库里已经有 ONNX 导出实现，核心导出逻辑在：
+
+- `PointPillars/algo/model_computers.py` 的 `save_model_params_onnx(...)`
+
+目前已经补了独立脚本 `scripts/run_hx_export_onnx.py`，它直接走模型导出逻辑，**不依赖 `prediction.pkl` / `training.pkl` / `validation.pkl`**，只需要：
+
+- `--result-root`
+- `--config`
+- 可选 `--epoch`
+
+导出后会生成一个目录：
+
+```text
+<result-root>/model_epoch/PointPillars_epoch_<epoch>/
+```
+
+里面会包含 3 个 ONNX 文件：
+
+```text
+vfe.onnx
+backbone2D.onnx
+rpn.onnx
+```
+
+#### 29.1 导出指定 epoch 的 ONNX
+
+现在可以直接使用新增脚本：
+
+```bash
+python scripts/run_hx_export_onnx.py \
+  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
+  --config PointPillars/algo/algo_config_hx.yaml \
+  --epoch 10
+```
+
+如果不传 `--epoch`，则默认读取配置里的：
+
+- `PointPillars/algo/algo_config_hx.yaml`
+- `TRAIN_MODEL.SAVE.SAVE_EPOCH`
+
+例如：
+
+```bash
+python scripts/run_hx_export_onnx.py \
+  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
+  --config PointPillars/algo/algo_config_hx.yaml
+```
+
+#### 29.2 导出输出位置
+
+如果导出的是 `epoch 10`，输出目录通常是：
+
+```text
+/home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result/model_epoch/PointPillars_epoch_10/
+```
+
+目录内文件：
+
+```text
+vfe.onnx
+backbone2D.onnx
+rpn.onnx
+```
+
+#### 29.3 配置项说明
+
+相关配置在：
+
+```yaml
+TRAIN_MODEL:
+  SAVE:
+    SAVE_EPOCH: [1, 2, '保存指定epoch的onnx模型']
+    SAVE_PATH: ['model_onnx', 2, 'onnx模型或bin模型保存路径']
+```
+
+说明：
+
+- `SAVE_EPOCH`：默认导出的 epoch
+- `SAVE_PATH`：当前这份实现里没有真正参与导出路径拼接
+- 实际导出目录目前由代码固定为：
+  - `<result-root>/model_epoch/PointPillars_epoch_<epoch>/`
+
+#### 29.4 使用建议
+
+正式训练完成后，先确认目标 checkpoint 存在：
+
+```bash
+ls /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result/model_epoch
+```
+
+再按目标 epoch 导出，例如：
+
+```bash
+python scripts/run_hx_export_onnx.py \
+  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
+  --config PointPillars/algo/algo_config_hx.yaml \
+  --epoch 20
+```

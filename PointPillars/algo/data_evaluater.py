@@ -119,7 +119,6 @@ class data_evaluater(data_evaluater_base):
                 if self.preds is None:
                     self.preds = cur_pred
                 else:
-                    print('self.preds.shape[0]: %i, current_pred.shape[0]: %i' % (self.preds.shape[0], cur_pred.shape[0]))
                     self.preds = np.concatenate([self.preds, cur_pred], axis=0)
 
             gt_box = gt_boxes[index]
@@ -144,6 +143,30 @@ class data_evaluater(data_evaluater_base):
                     self.gts = cur_gt
                 else:
                     self.gts = np.concatenate([self.gts, cur_gt], axis=0)
+
+    def _extract_metric_values(self, metric_result: object) -> np.ndarray:
+        class_names = ['Pedestrian', 'Mbike', 'Car', 'Bus', 'Tricycle']
+
+        if isinstance(metric_result, pd.DataFrame):
+            selected = metric_result.loc[:, class_names]
+            return selected.mean(axis=0).to_numpy(dtype=np.float32)
+
+        if isinstance(metric_result, pd.Series):
+            return metric_result.reindex(class_names).to_numpy(dtype=np.float32)
+
+        metric_array = np.asarray(metric_result, dtype=np.float32)
+        if metric_array.ndim == 0:
+            return np.full(5, float(metric_array), dtype=np.float32)
+        if metric_array.ndim == 1:
+            if metric_array.shape[0] == 5:
+                return metric_array.astype(np.float32)
+            return np.full(5, float(np.mean(metric_array)), dtype=np.float32)
+        if metric_array.ndim == 2:
+            if metric_array.shape[1] == 5:
+                return metric_array.mean(axis=0).astype(np.float32)
+            if metric_array.shape[0] == 5:
+                return metric_array.mean(axis=1).astype(np.float32)
+        return np.full(5, float(np.mean(metric_array)), dtype=np.float32)
 
     def evaluate(self):
         """
@@ -191,14 +214,10 @@ class data_evaluater(data_evaluater_base):
                 print("evaluation Done!")
                 self.res_dict['msg'].append('evaluation Done!')
 
-                recall = np.mean(
-                    eva.detect_res[scene]['recall'].loc[:, ['Pedestrian', 'Mbike', 'Car', 'Bus', 'Tricycle']]).values
-                precision = np.mean(
-                    eva.detect_res[scene]['precision'].loc[:, ['Pedestrian', 'Mbike', 'Car', 'Bus', 'Tricycle']]).values
-                ap = np.mean(
-                    eva.detect_res[scene]['ap'].loc[:, ['Pedestrian', 'Mbike', 'Car', 'Bus', 'Tricycle']]).values
-                aos = np.mean(
-                    eva.detect_res[scene]['aos'].loc[:, ['Pedestrian', 'Mbike', 'Car', 'Bus', 'Tricycle']]).values
+                recall = self._extract_metric_values(eva.detect_res[scene]['recall'])
+                precision = self._extract_metric_values(eva.detect_res[scene]['precision'])
+                ap = self._extract_metric_values(eva.detect_res[scene]['ap'])
+                aos = self._extract_metric_values(eva.detect_res[scene]['aos'])
                 self.evaluate_results.append([recall, precision, ap, aos])
 
 def PlotRec(points, color, set_axis=False):
@@ -951,7 +970,6 @@ class trackingEvaluation(object):
 
         for i in range(len(frame_list)):
             frame = frame_list[i]
-            print(frame)
 
             gt_frame = gt.loc[gt.frame == frame, :].reset_index(drop=True)
             tr_frame = tr.loc[tr.frame == frame, :].reset_index(drop=True)

@@ -22,7 +22,10 @@ def main():
     parser.add_argument('--config', default='PointPillars/algo/algo_config_hx.yaml', help='Path to HX config file')
     parser.add_argument('--smoke', action='store_true', help='Run a 1-epoch smoke test with batch size 1 and check_flag enabled')
     parser.add_argument('--epochs', type=int, default=None, help='Override epoch count')
-    parser.add_argument('--batch-size', type=int, default=None, help='Override batch size')
+    parser.add_argument('--batch-size', '--batch_size', dest='batch_size', type=int, default=None, help='Override batch size')
+    parser.add_argument('--eval-every-epochs', type=int, default=None, help='Override validation frequency in epochs')
+    parser.add_argument('--num-workers', type=int, default=None, help='Override DataLoader worker count for train/eval')
+    parser.add_argument('--multi-gpu', action='store_true', help='Enable DataParallel when multiple CUDA devices are available')
     args = parser.parse_args()
 
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -57,6 +60,12 @@ def main():
         train_cfg['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0] = args.epochs
     if args.batch_size is not None:
         train_cfg['TRAIN']['CTRL']['DATA']['BATCH_SIZE'][0] = args.batch_size
+    if args.eval_every_epochs is not None:
+        train_cfg['TRAIN']['CTRL']['CTRL_']['EVAL_EVERY_EPOCHS'][0] = args.eval_every_epochs
+    if args.num_workers is not None:
+        train_cfg['TRAIN']['CTRL']['DATA']['NUM_WORKERS'][0] = args.num_workers
+    if args.multi_gpu:
+        train_cfg['TRAIN']['CTRL']['CTRL_']['USE_MULTI_GPU'][0] = True
 
     res = {'msg': []}
     ITrain(train_cfg, args.data_root, args.result_root, model_epoch_root, pretrained_path=None, check_flag=args.smoke, res_dict=res)

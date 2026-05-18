@@ -62,6 +62,8 @@ class dataset(data.Dataset):
         for dim in dims:
             voxel_size.append(voxel_dict[f'{dim}'][0])
         self.voxel_size = np.array(voxel_size, dtype=np.float32)
+        self.max_num_points = self.params_dict['TRAIN']['CTRL']['DATA']['MAX_POINTS_PER_VOXEL'][0]
+        self.max_voxels = self.params_dict['TRAIN']['CTRL']['DATA']['MAX_VOXEL_NUM'][0]
 
         if self.prefix == self.params_dict['TRAIN']['OVERALL']['TRAIN_PREFIX'][0] \
                 and self.params_dict['TRAIN']['CTRL']['AUGMENT']['EXTRACT_MINOR_TYPE'][0] \
@@ -155,21 +157,8 @@ class dataset(data.Dataset):
                 nan_mask *= ~np.isnan(points[:, i])
         points = points[nan_mask]
 
-        max_num_points = self.params_dict['TRAIN']['CTRL']['DATA']['MAX_POINTS_PER_VOXEL'][0]
-        max_voxels = self.params_dict['TRAIN']['CTRL']['DATA']['MAX_VOXEL_NUM'][0]
-        voxels, coors, num_points_per_voxel = points_to_voxel(
-            points,
-            self.voxel_size,
-            self.point_cloud_range,
-            max_num_points,
-            True,
-            max_voxels,
-        )
-
         return {
-            'voxels': voxels,
-            'coors': coors,
-            'num_points_per_voxel': num_points_per_voxel,
+            'points': points,
             'gt_boxes': gt_boxes,
             'filename': lidar_points_path.split(os.sep)[-1],
             'frame_id': index,
@@ -181,9 +170,7 @@ class dataset(data.Dataset):
             return None, None, None
 
         gt_boxes_list = [sample['gt_boxes'] for sample in batch_list]
-        voxels_list = [sample['voxels'] for sample in batch_list]
-        coors_list = [sample['coors'] for sample in batch_list]
-        num_pts_voxel_list = [sample['num_points_per_voxel'] for sample in batch_list]
+        points_list = [sample['points'] for sample in batch_list]
         filename_list = [sample['filename'] for sample in batch_list]
         frame_ids = [sample['frame_id'] for sample in batch_list]
 
@@ -194,24 +181,11 @@ class dataset(data.Dataset):
             if gt_box.shape[0] > 0:
                 batch_gt_boxes[i, :gt_box.shape[0], :] = gt_box
 
-        batch_voxels = np.concatenate(voxels_list, axis=0) if voxels_list else np.zeros((0, 0, 0), dtype=np.float32)
-        temps = []
-        for i, coors in enumerate(coors_list):
-            temp = np.pad(coors, ((0, 0), (1, 0)), mode='constant', constant_values=i)
-            temps.append(temp)
-        batch_voxel_coors = np.concatenate(temps, axis=0) if temps else np.zeros((0, 4), dtype=np.int32)
-        batch_num_pts_voxel = np.concatenate(num_pts_voxel_list, axis=0) if num_pts_voxel_list else np.zeros((0,), dtype=np.int32)
-
-        inputs = [
-            torch.from_numpy(batch_voxels).float(),
-            torch.from_numpy(batch_num_pts_voxel).float(),
-            torch.from_numpy(batch_voxel_coors).float(),
-        ]
         labels = [
             torch.from_numpy(batch_gt_boxes).float(),
             torch.tensor(frame_ids).float(),
         ]
-        return inputs, labels, filename_list
+        return points_list, labels, filename_list
 
     def include_data(self, dataset_path):
         if not os.path.exists(dataset_path):

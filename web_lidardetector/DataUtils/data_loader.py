@@ -100,3 +100,13 @@ class data_loader(object):
             self._iter_index = 0
         self._iter_index += 1
         return inputs, label, filenames, self._iter_index
+
+    def get_voxel_params(self):
+        """Return voxelization parameters from the currently active dataset."""
+        ds = self.dataset[self.iter_dataset_type]
+        return {
+            'voxel_size': ds.voxel_size,
+            'point_cloud_range': ds.point_cloud_range,
+            'max_num_points': ds.max_num_points,
+            'max_voxels': ds.max_voxels,
+        }

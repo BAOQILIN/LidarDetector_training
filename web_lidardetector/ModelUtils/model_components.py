@@ -38,7 +38,10 @@ class model_components(object):
         self.__initial_loss()
         self.__initial_model()
         self.__initial_model_controller()
-        self.grad_scaler = torch.amp.GradScaler('cuda', enabled=torch.cuda.is_available())
+        if hasattr(torch.amp, 'GradScaler'):
+            self.grad_scaler = torch.amp.GradScaler('cuda', enabled=torch.cuda.is_available())
+        else:
+            self.grad_scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
     
     def save_model_torch(self, epoch):
         self.model_computer.save_model_params_torch(epoch)

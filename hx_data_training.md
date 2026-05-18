@@ -902,6 +902,7 @@ TRAIN_MODEL:
      - `scripts/run_hx_preprocess.py`
      - `scripts/run_hx_train.py`
      - `scripts/run_hx_export_onnx.py`
+     - `scripts/run_hx_eval.py`
 
 ---
 
@@ -1017,3 +1018,126 @@ python scripts/run_hx_export_onnx.py \
   --config PointPillars/algo/algo_config_hx.yaml \
   --epoch 20
 ```
+
+---
+
+### 30. 模型检测性能验证：评估与可视化
+
+训练完成后，使用 `scripts/run_hx_eval.py` 验证模型检测性能。该脚本支持两种模式：
+
+- **单帧可视化**：Open3D 窗口显示点云 + 真值框（绿色）+ 预测框（红色），直观判断检测效果
+- **后台全量评估**：遍历整个测试集，计算 Recall、Precision、AP、AOS，保存到 `eva_test.npy`
+
+依赖：
+
+```bash
+pip install open3d
+```
+
+#### 30.1 单帧可视化
+
+```bash
+# 可视化测试集第 0 帧（默认）
+python scripts/run_hx_eval.py \
+  --data-root /home/bql/ARS/ARS_Data/ars_hx_train_data \
+  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
+  --epoch 10 \
+  --visualize
+
+# 可视化第 42 帧，降低阈值显示更多预测框
+python scripts/run_hx_eval.py \
+  --data-root /home/bql/ARS/ARS_Data/ars_hx_train_data \
+  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
+  --epoch 10 \
+  --visualize \
+  --index 42 \
+  --score-thresh 0.1
+
+# 使用 prediction 数据集
+python scripts/run_hx_eval.py \
+  --data-root /home/bql/ARS/ARS_Data/ars_hx_train_data \
+  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
+  --epoch 10 \
+  --visualize \
+  --dataset predict
+```
+
+Open3D 窗口内容：
+
+- **灰度点云**（按 intensity 着色，intensity 越高越白）
+- **绿色线框** = 真值框（GT）
+- **红色线框** = 模型预测框（Pred）
+- 原点处 RGB 坐标轴（X=红, Y=绿, Z=蓝）
+
+#### 30.2 后台全量评估
+
+```bash
+python scripts/run_hx_eval.py \
+  --data-root /home/bql/ARS/ARS_Data/ars_hx_train_data \
+  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
+  --epoch 10 \
+  --evaluate
+```
+
+结果文件：
+
+```text
+<result-root>/loss_eva/eva_test.npy
+```
+
+该 `.npy` 文件包含 dict：
+
+```python
+{'evaluate_result': [recalls, precisions, aps, aoses]}
+# 每个都是 (num_epochs, num_classes) 结构
+# num_classes = 5: Pedestrian, Mbike, Car, Bus, Tricycle
+```
+
+#### 30.3 同时评估 + 可视化
+
+```bash
+python scripts/run_hx_eval.py \
+  --data-root /home/bql/ARS/ARS_Data/ars_hx_train_data \
+  --result-root /home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result \
+  --epoch 10 \
+  --evaluate \
+  --visualize
+```
+
+#### 30.4 可视化评估指标曲线
+
+训练过程中的验证集指标可通过 `DataDisplayer` 绘制：
+
+```python
+from PointPillars.algo.data_displayer import DataDisplayer
+
+displayer = DataDisplayer(
+    params_dict={'RESULT_PATH': ['loss_eva']},
+    result_root='/home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result',
+    picture_save_root='/home/bql/ARS/ARS_Data/ars_hx_train_data/hx_result/pictures',
+)
+displayer.display_loss()  # loss 曲线
+displayer.display_eva()   # Recall/Precision/AP/AOS 曲线
+```
+
+#### 30.5 完整参数说明
+
+| 参数 | 说明 | 默认值 |
+|------|------|:---:|
+| `--data-root` | HX 数据集根目录 | 必填 |
+| `--result-root` | 训练结果目录 | 必填 |
+| `--epoch` | 要评估的模型 epoch 号 | 必填 |
+| `--visualize` | 启用单帧 Open3D 可视化 | 关闭 |
+| `--evaluate` | 启用后台全量测试集评估 | 关闭 |
+| `--index` | 可视化帧在数据集中的索引 | `0` |
+| `--score-thresh` | 预测框置信度阈值 | `0.2` |
+| `--dataset` | 数据集类型：`test` 或 `predict` | `test` |
+| `--config` | 配置文件路径 | `PointPillars/algo/algo_config_hx.yaml` |
+
+#### 30.6 验证流程建议
+
+完整验证流程推荐按以下顺序：
+
+1. **先可视化几帧**：确认模型输出合理（框位置、类别、置信度）
+2. **再跑全量评估**：获取定量指标（AP、Recall、Precision）
+3. **最后画指标曲线**：通过 `DataDisplayer` 查看训练过程中指标变化趋势

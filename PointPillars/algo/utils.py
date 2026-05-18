@@ -3,6 +3,7 @@
 # 如果确实存在彼此公用的功能,务必定义在此文件中
 # 其他.py文件可以调用此uitls.py文件
 
+import os
 import math
 import torch
 import numba
@@ -11,6 +12,20 @@ from numba import cuda
 
 
 def load_ascii_pcd_points(lidar_path):
+    # 优先读取.npy格式（加载速度远快于ASCII PCD解析）
+    if lidar_path.endswith('.pcd'):
+        npy_path = lidar_path[:-4] + '.npy'
+    else:
+        npy_path = lidar_path + '.npy'
+    if os.path.exists(npy_path):
+        points = np.load(npy_path).astype(np.float32)
+        if points.ndim == 1:
+            points = points.reshape(1, -1)
+        if points.shape[1] < 4:
+            raise ValueError(f'NPY has fewer than 4 columns: {npy_path}')
+        return points[:, :4].astype(np.float32)
+
+    # 回退到ASCII PCD解析
     data_line_index = None
     with open(lidar_path, 'r', encoding='utf-8', errors='ignore') as f:
         for index, line in enumerate(f):
@@ -180,6 +195,116 @@ def points_to_voxel(points,
     num_points_per_voxel = num_pts_per_voxel[:voxel_num]  # (voxel_num, )
 
     return voxels, coors, num_points_per_voxel
+
+
+def points_to_voxel_gpu(points_np,
+                        voxel_size=None,
+                        point_cloud_range=None,
+                        max_num_points=35,
+                        max_voxels=20000):
+    """Single-sample GPU voxelization. Returns GPU tensors."""
+    if voxel_size is None:
+        voxel_size = np.array([0.2, 0.2, 8], dtype=np.float32)
+    if point_cloud_range is None:
+        point_cloud_range = np.array([-100, -50.4, -5, 100, 50.4, 3], dtype=np.float32)
+
+    if not isinstance(voxel_size, np.ndarray):
+        voxel_size = np.array(voxel_size, dtype=np.float32)
+    if not isinstance(point_cloud_range, np.ndarray):
+        point_cloud_range = np.array(point_cloud_range, dtype=np.float32)
+
+    device = torch.device('cuda')
+    points = torch.from_numpy(points_np).float().to(device)
+    N, C = points.shape
+
+    voxel_size_t = torch.from_numpy(voxel_size).float().to(device)
+    pc_range_t = torch.from_numpy(point_cloud_range).float().to(device)
+    grid_size = torch.round((pc_range_t[3:] - pc_range_t[:3]) / voxel_size_t).int()
+
+    # coords: (N, 3) in [x, y, z]
+    coords_xyz = torch.floor((points[:, :3] - pc_range_t[:3]) / voxel_size_t).int()
+
+    in_range = ((coords_xyz[:, 0] >= 0) & (coords_xyz[:, 0] < grid_size[0]) &
+                (coords_xyz[:, 1] >= 0) & (coords_xyz[:, 1] < grid_size[1]) &
+                (coords_xyz[:, 2] >= 0) & (coords_xyz[:, 2] < grid_size[2]))
+    coords_zyx = coords_xyz[:, [2, 1, 0]][in_range]  # (M, 3) [z, y, x]
+    points_f = points[in_range]
+    M = points_f.shape[0]
+
+    if M == 0:
+        return (torch.zeros(0, max_num_points, C, device=device),
+                torch.zeros(0, 3, dtype=torch.int32, device=device),
+                torch.zeros(0, dtype=torch.int32, device=device))
+
+    voxel_key = (coords_zyx[:, 0].long() * (grid_size[1].long() * grid_size[0].long()) +
+                 coords_zyx[:, 1].long() * grid_size[0].long() +
+                 coords_zyx[:, 2].long())
+
+    sorted_keys, sort_idx = torch.sort(voxel_key)
+    sorted_points = points_f[sort_idx]
+    sorted_coords = coords_zyx[sort_idx]
+
+    unique_keys, inverse, counts = torch.unique_consecutive(
+        sorted_keys, return_inverse=True, return_counts=True)
+
+    num_voxels = min(unique_keys.shape[0], max_voxels)
+    if unique_keys.shape[0] > max_voxels:
+        keep = inverse < max_voxels
+        sorted_points = sorted_points[keep]
+        sorted_coords = sorted_coords[keep]
+        unique_keys, inverse, counts = torch.unique_consecutive(
+            sorted_keys[keep], return_inverse=True, return_counts=True)
+        num_voxels = unique_keys.shape[0]
+
+    cumsum = torch.cat([torch.zeros(1, dtype=torch.int64, device=device),
+                        torch.cumsum(counts, dim=0)])
+    local_idx = torch.arange(sorted_points.shape[0], device=device) - cumsum[inverse]
+
+    within_limit = local_idx < max_num_points
+    local_idx_f = local_idx[within_limit]
+    inverse_f = inverse[within_limit]
+    points_f2 = sorted_points[within_limit]
+
+    voxels = torch.zeros((num_voxels, max_num_points, C), dtype=torch.float32, device=device)
+    voxels[inverse_f, local_idx_f] = points_f2
+
+    num_pts = torch.clamp(counts, max=max_num_points).int()
+
+    coors_out = sorted_coords[cumsum[:num_voxels]]
+
+    return voxels, coors_out, num_pts
+
+
+def points_to_voxel_batch_gpu(points_list,
+                               voxel_size=None,
+                               point_cloud_range=None,
+                               max_num_points=35,
+                               max_voxels=20000):
+    """Batch GPU voxelization. Returns concatenated GPU tensors."""
+    all_voxels, all_coors, all_num_pts = [], [], []
+    for b, pts in enumerate(points_list):
+        if pts.shape[0] == 0:
+            continue
+        v, c, n = points_to_voxel_gpu(pts, voxel_size, point_cloud_range,
+                                       max_num_points, max_voxels)
+        batch_c = torch.cat([
+            torch.full((c.shape[0], 1), b, dtype=torch.int32, device=c.device),
+            c,
+        ], dim=1)
+        all_voxels.append(v)
+        all_coors.append(batch_c)
+        all_num_pts.append(n)
+
+    if len(all_voxels) == 0:
+        C = points_list[0].shape[1] if points_list else 4
+        device = torch.device('cuda')
+        return (torch.zeros(0, max_num_points, C, device=device),
+                torch.zeros(0, 4, dtype=torch.int32, device=device),
+                torch.zeros(0, dtype=torch.int32, device=device))
+
+    return (torch.cat(all_voxels, dim=0),
+            torch.cat(all_coors, dim=0),
+            torch.cat(all_num_pts, dim=0))
 
 
 @numba.jit(nopython=True)

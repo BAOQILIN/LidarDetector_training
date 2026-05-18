@@ -13,9 +13,11 @@ import torch
 import sys
 import time
 sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'PointPillars', 'algo'))
 from ModelUtils.model_components import model_components
 from DataUtils.data_components import data_components
 from model_predict import Predictor
+from utils import points_to_voxel_batch_gpu
 
 
 class LidarDetector(object):
@@ -155,7 +157,12 @@ class LidarDetector(object):
 
         for inputs, labels, filenames, idx in self.data_component.data_loader:
             data_ready_time = time.time()
-            inputs = self._move_to_device(inputs)
+            # GPU voxelization (inputs is points_list from collate_batch)
+            vp = self.data_component.data_loader.get_voxel_params()
+            voxels, coors, num_pts = points_to_voxel_batch_gpu(
+                inputs, vp['voxel_size'], vp['point_cloud_range'],
+                vp['max_num_points'], vp['max_voxels'])
+            inputs = [voxels, num_pts.float(), coors.float()]
             labels = self._move_to_device(labels)
             self.model_component.optimizer.zero_grad()
             with torch.amp.autocast('cuda', enabled=torch.cuda.is_available()):
@@ -211,13 +218,25 @@ class LidarDetector(object):
         self.data_component.data_loader.initial(test_type)
         self.data_component.data_evaluater.initial()
 
+        total_batches = len(self.data_component.data_loader.loaders[test_type])
+        print_gap = max(1, total_batches // 20)  # ~5% progress steps
+
         with torch.no_grad():
             for inputs, labels, filenames, idx in self.data_component.data_loader:
-                inputs = self._move_to_device(inputs)
+                vp = self.data_component.data_loader.get_voxel_params()
+                voxels, coors, num_pts = points_to_voxel_batch_gpu(
+                    inputs, vp['voxel_size'], vp['point_cloud_range'],
+                    vp['max_num_points'], vp['max_voxels'])
+                inputs = [voxels, num_pts.float(), coors.float()]
                 labels = self._move_to_device(labels)
                 with torch.amp.autocast('cuda', enabled=torch.cuda.is_available()):
                     outputs = self.model_component.model_computer.model_compute(inputs)
                 self.data_component.data_evaluater.record(outputs, labels)
+                if idx % print_gap == 0:
+                    eta = (time.time() - eval_start) / max(idx, 1) * (total_batches - idx)
+                    progress_msg = self._timestamped(f'{eval_prefix}stage {test_type} batch {idx}/{total_batches}, eta {eta:.0f}s')
+                    print(progress_msg)
+                    self.res_dict['msg'].append(progress_msg)
                 if self.check_flag:
                     break
 

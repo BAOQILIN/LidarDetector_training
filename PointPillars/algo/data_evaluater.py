@@ -79,6 +79,7 @@ class data_evaluater(data_evaluater_base):
         # 建议初始化如下成员变量,用于保存整个数据集的真值和预测值,可自定义
         self.preds = None
         self.labels = None
+        self._bbox_generator = utils.BboxGenerator(copy.deepcopy(self.params_dict))
 
     def record(self, model_outputs, labels):
         """
@@ -95,9 +96,7 @@ class data_evaluater(data_evaluater_base):
         gt_boxes = gt_boxes.cpu().numpy()
         frame_ids = frame_ids.cpu().numpy()
 
-        self.params_dict_copy = copy.deepcopy(self.params_dict)
-        bbox_generator = utils.BboxGenerator(self.params_dict_copy)
-        pred_dicts = bbox_generator.generate_predicted_boxes(batch_size, batch_cls_preds, batch_box_preds)
+        pred_dicts = self._bbox_generator.generate_predicted_boxes(batch_size, batch_cls_preds, batch_box_preds)
         for index, box_dict in enumerate(pred_dicts):
             pred_scores = box_dict['pred_scores'].cpu().numpy()[:, np.newaxis]
             pred_boxes = box_dict['pred_boxes'].cpu().numpy()

@@ -294,12 +294,8 @@ class AxisAlignedTargetAssigner(object):
 
             target_list = []
             # all_anchors：list[5]，对应不同类: ([z=1, y=128, x=128, num_size=1, num_rot=2, 8])
-            for anchor_class_name, anchors in zip(self.anchor_class_names, all_anchors):
-                if cur_gt_classes.shape[0] > 1:
-                    mask = torch.from_numpy(self.class_names[cur_gt_classes.cpu() - 1] == anchor_class_name)
-                else:
-                    mask = torch.tensor([self.class_names[c - 1] == anchor_class_name
-                                         for c in cur_gt_classes], dtype=torch.bool)
+            for anchor_idx, (anchor_class_name, anchors) in enumerate(zip(self.anchor_class_names, all_anchors)):
+                mask = (cur_gt_classes - 1) == anchor_idx
 
                 if self.use_multihead:  # True
                     # contiguous()首先拷贝张量的地址，然后将地址按照形状改变后的张量的语义进行排列(为view做准备) ([2*128*128,10])
@@ -373,12 +369,12 @@ class AxisAlignedTargetAssigner(object):
             # anchor_by_gt_overlap:([2*128*128, M]),只是粗略计算
             anchor_by_gt_overlap = utils.boxes3d_nearest_bev_iou(anchors[:, 0:7], gt_boxes[:, 0:7])
 
-            anchor_to_gt_argmax = torch.from_numpy(anchor_by_gt_overlap.cpu().numpy().argmax(axis=1)).cuda()  # ([2*128*128])
+            anchor_to_gt_argmax = anchor_by_gt_overlap.argmax(dim=1)  # ([2*128*128])
             anchor_to_gt_max = anchor_by_gt_overlap[
                 torch.arange(num_anchors, device=anchors.device), anchor_to_gt_argmax
             ]  # ([2*128*128,])
 
-            gt_to_anchor_argmax = torch.from_numpy(anchor_by_gt_overlap.cpu().numpy().argmax(axis=0)).cuda()  # Indies
+            gt_to_anchor_argmax = anchor_by_gt_overlap.argmax(dim=0)  # Indies
             gt_to_anchor_max = anchor_by_gt_overlap[gt_to_anchor_argmax, torch.arange(num_gt, device=anchors.device)]
             empty_gt_mask = gt_to_anchor_max == 0
             gt_to_anchor_max[empty_gt_mask] = -1  # ([M, ])

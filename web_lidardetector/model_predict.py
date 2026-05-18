@@ -18,7 +18,10 @@ import os
 import json
 import torch
 import time
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'PointPillars', 'algo'))
 import data_postprocessor
+from utils import points_to_voxel_batch_gpu
 
 
 class Predictor(object):
@@ -60,7 +63,11 @@ class Predictor(object):
             print('Starting predicting data, it may take several minutes...')
             self.res_dict['msg'].append('Starting predicting data, it may take several minutes...')
             for inputs, labels, filenames, idx in self.data_loader:  ## for each batch
-                inputs = self._move_to_device(inputs)
+                vp = self.data_loader.get_voxel_params()
+                voxels, coors, num_pts = points_to_voxel_batch_gpu(
+                    inputs, vp['voxel_size'], vp['point_cloud_range'],
+                    vp['max_num_points'], vp['max_voxels'])
+                inputs = [voxels, num_pts.float(), coors.float()]
                 with torch.amp.autocast('cuda', enabled=torch.cuda.is_available()):
                     outputs = self.model(inputs)
                 predictions, filenames = self.data_postprocessor.data_postprocess(outputs, filenames)

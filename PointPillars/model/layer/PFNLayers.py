@@ -20,9 +20,10 @@ class PFNLayers(nn.Module):
         else:
             x = self.linear(inputs)
 
+        cudnn_enabled = torch.backends.cudnn.enabled
         torch.backends.cudnn.enabled = False
         x = self.norm(x).permute(0, 2, 1)
-        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.enabled = cudnn_enabled
         x = F.relu(x)
 
         return x

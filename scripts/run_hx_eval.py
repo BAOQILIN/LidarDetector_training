@@ -56,6 +56,12 @@ from utils import load_ascii_pcd_points, BboxGenerator, points_to_voxel_gpu
 CLASS_NAMES = ['Pedestrian', 'Mbike', 'Car', 'Bus', 'Tricycle']
 GT_COLOR = (0.0, 1.0, 0.0)    # green
 PRED_COLOR = (1.0, 0.0, 0.0)  # red
+POINT_COLOR = (0.0, 0.2, 0.8)  # blue
+BOX_EDGES = [
+    (0, 1), (1, 2), (2, 3), (3, 0),
+    (4, 5), (5, 6), (6, 7), (7, 4),
+    (0, 4), (1, 5), (2, 6), (3, 7),
+]
 
 
 def load_config(config_path):
@@ -116,18 +122,13 @@ def create_box_lineset(corners, color):
 
     import open3d as o3d
 
-    edges = [
-        (0, 1), (1, 2), (2, 3), (3, 0),
-        (4, 5), (5, 6), (6, 7), (7, 4),
-        (0, 4), (1, 5), (2, 6), (3, 7),
-    ]
     all_points = []
     all_lines = []
     offset = 0
     for i in range(corners.shape[0]):
         for j in range(8):
             all_points.append(corners[i, j])
-        for e in edges:
+        for e in BOX_EDGES:
             all_lines.append([offset + e[0], offset + e[1]])
         offset += 8
 
@@ -145,7 +146,7 @@ def create_point_cloud(points):
 
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points[:, :3].astype(np.float64))
-    colors = np.tile(np.array([[0.0, 0.2, 0.8]], dtype=np.float64), (points.shape[0], 1))
+    colors = np.tile(np.array([POINT_COLOR], dtype=np.float64), (points.shape[0], 1))
     pcd.colors = o3d.utility.Vector3dVector(colors)
     return pcd
 
@@ -183,6 +184,75 @@ def run_single_inference(model, points, voxel_params, bbox_generator):
     return pred_dicts[0]
 
 
+def class_name_from_label(label):
+    cls_idx = int(label) - 1
+    return CLASS_NAMES[cls_idx] if 0 <= cls_idx < len(CLASS_NAMES) else f'cls_{label}'
+
+
+def build_frame_data(detector, dataset_key, index, score_thresh):
+    _check_dataset(detector, dataset_key, 'visualization')
+    ds = detector.data_component.data_loader.dataset[dataset_key]
+    if index < 0 or index >= len(ds):
+        raise IndexError(f'Index {index} out of range [0, {len(ds) - 1}] for dataset "{dataset_key}"')
+
+    sample = ds.infos[index]
+    lidar_path = sample['lidar_path']
+    gt_boxes = sample['gt_boxes'].astype(np.float32)
+    gt_names = sample['gt_names']
+    raw_points = load_ascii_pcd_points(lidar_path)
+
+    data = ds[index]
+    model = detector.model_component.model_computer.model
+    bbox_generator = BboxGenerator(copy.deepcopy(detector.params_dict))
+    voxel_params = {
+        'voxel_size': ds.voxel_size,
+        'point_cloud_range': ds.point_cloud_range,
+        'max_num_points': ds.max_num_points,
+        'max_voxels': ds.max_voxels,
+    }
+    pred_dict = run_single_inference(model, data['points'], voxel_params, bbox_generator)
+
+    pred_boxes = pred_dict['pred_boxes'].cpu().numpy()
+    pred_scores = pred_dict['pred_scores'].cpu().numpy()
+    pred_labels = pred_dict['pred_labels'].cpu().numpy()
+
+    if score_thresh > 0:
+        keep = pred_scores >= score_thresh
+        pred_boxes = pred_boxes[keep]
+        pred_scores = pred_scores[keep]
+        pred_labels = pred_labels[keep]
+
+    gt_labels = [
+        {
+            'text': str(name),
+            'position': np.array([box[0], box[1], box[2] + box[5] / 2.0 + 0.3], dtype=np.float32),
+            'color': GT_COLOR,
+        }
+        for name, box in zip(gt_names, gt_boxes)
+    ]
+    pred_labels_info = [
+        {
+            'text': f"{class_name_from_label(label)} {score:.2f}",
+            'position': np.array([box[0], box[1], box[2] + box[5] / 2.0 + 0.3], dtype=np.float32),
+            'color': PRED_COLOR,
+        }
+        for box, label, score in zip(pred_boxes, pred_labels, pred_scores)
+    ]
+
+    return {
+        'index': index,
+        'lidar_path': lidar_path,
+        'raw_points': raw_points,
+        'gt_boxes': gt_boxes,
+        'gt_names': gt_names,
+        'pred_boxes': pred_boxes,
+        'pred_scores': pred_scores,
+        'pred_labels': pred_labels,
+        'gt_label_infos': gt_labels,
+        'pred_label_infos': pred_labels_info,
+    }
+
+
 def _check_dataset(detector, dataset_key, purpose):
     """Verify the dataset is non-empty, or raise with a helpful message."""
     ds = detector.data_component.data_loader.dataset.get(dataset_key)
@@ -200,85 +270,185 @@ def _check_dataset(detector, dataset_key, purpose):
         )
 
 
-def visualize_frame(detector, dataset_key, index, score_thresh):
-    """Show a single frame in Open3D: point cloud + GT (green) + pred boxes (red)."""
-    import open3d as o3d
-
-    _check_dataset(detector, dataset_key, 'visualization')
-    ds = detector.data_component.data_loader.dataset[dataset_key]
-    if index < 0 or index >= len(ds):
-        raise IndexError(f'Index {index} out of range [0, {len(ds) - 1}] for dataset "{dataset_key}"')
-
-    sample = ds.infos[index]
-    lidar_path = sample['lidar_path']
-    gt_boxes_raw = sample['gt_boxes'].astype(np.float32)
-    gt_names = sample['gt_names']
-
-    print(f'Frame #{index}: {lidar_path}')
-    print(f'  GT objects: {len(gt_boxes_raw)}')
-    for i, (name, box) in enumerate(zip(gt_names, gt_boxes_raw)):
+def _print_frame_summary(frame_data, score_thresh):
+    print(f"Frame #{frame_data['index']}: {frame_data['lidar_path']}")
+    print(f"  GT objects: {len(frame_data['gt_boxes'])}")
+    for i, (name, box) in enumerate(zip(frame_data['gt_names'], frame_data['gt_boxes'])):
         print(f'    [{i}] {name} @ ({box[0]:.2f}, {box[1]:.2f}, {box[2]:.2f})')
 
-    raw_points = load_ascii_pcd_points(lidar_path)
+    print(f"  Pred objects (score >= {score_thresh}): {len(frame_data['pred_boxes'])}")
+    for i, (box, label, score) in enumerate(zip(frame_data['pred_boxes'], frame_data['pred_labels'], frame_data['pred_scores'])):
+        print(f'    [{i}] {class_name_from_label(label)} score={score:.3f} @ ({box[0]:.2f}, {box[1]:.2f}, {box[2]:.2f})')
 
-    data = ds[index]
-    model = detector.model_component.model_computer.model
 
-    bbox_generator = BboxGenerator(copy.deepcopy(detector.params_dict))
-    voxel_params = {
-        'voxel_size': ds.voxel_size,
-        'point_cloud_range': ds.point_cloud_range,
-        'max_num_points': ds.max_num_points,
-        'max_voxels': ds.max_voxels,
-    }
-    pred_dict = run_single_inference(
-        model, data['points'], voxel_params, bbox_generator
-    )
+class EvalFrameViewer:
+    def __init__(self, detector, dataset_key, start_index, score_thresh):
+        import open3d as o3d
 
-    pred_boxes = pred_dict['pred_boxes'].cpu().numpy()
-    pred_scores = pred_dict['pred_scores'].cpu().numpy()
-    pred_labels = pred_dict['pred_labels'].cpu().numpy()
+        self.o3d = o3d
+        self.detector = detector
+        self.dataset_key = dataset_key
+        self.score_thresh = score_thresh
+        self.dataset = detector.data_component.data_loader.dataset[dataset_key]
+        self.index = start_index
+        self.app = o3d.visualization.gui.Application.instance
+        self.window = None
+        self.scene_widget = None
+        self.scene = None
+        self.materials = {}
+        self.axis = None
+        self.current_bounds = None
+        self.label_handles = []
 
-    if score_thresh > 0:
-        keep = pred_scores >= score_thresh
-        pred_boxes = pred_boxes[keep]
-        pred_scores = pred_scores[keep]
-        pred_labels = pred_labels[keep]
+    def run(self):
+        self.app.initialize()
+        self.window = self.app.create_window('HX Eval Viewer', 1600, 900)
+        self.window.set_on_close(self._on_close)
+        self.scene_widget = self.o3d.visualization.gui.SceneWidget()
+        self.scene_widget.scene = self.o3d.visualization.rendering.Open3DScene(self.window.renderer)
+        self.scene = self.scene_widget.scene
+        self.scene.set_background([0.1, 0.1, 0.1, 1.0])
+        self.scene_widget.set_on_key(self._on_key)
+        self.window.add_child(self.scene_widget)
+        self.window.set_focus_widget(self.scene_widget)
+        self.window.set_on_layout(self._on_layout)
+        self._init_materials()
+        self.axis = self.o3d.geometry.TriangleMesh.create_coordinate_frame(size=3.0, origin=[0, 0, 0])
+        self._load_frame(self.index, reset_camera=True)
+        self.app.run()
 
-    print(f'  Pred objects (score >= {score_thresh}): {len(pred_boxes)}')
-    for i in range(len(pred_boxes)):
-        cls_idx = int(pred_labels[i]) - 1
-        cls_name = CLASS_NAMES[cls_idx] if 0 <= cls_idx < len(CLASS_NAMES) else f'cls_{pred_labels[i]}'
-        box = pred_boxes[i]
-        print(f'    [{i}] {cls_name} score={pred_scores[i]:.3f} @ ({box[0]:.2f}, {box[1]:.2f}, {box[2]:.2f})')
+    def _init_materials(self):
+        unlit_line = self.o3d.visualization.rendering.MaterialRecord()
+        unlit_line.shader = 'unlitLine'
+        unlit_line.line_width = 2.0
 
-    geoms = [create_point_cloud(raw_points)]
+        unlit_point = self.o3d.visualization.rendering.MaterialRecord()
+        unlit_point.shader = 'defaultUnlit'
+        unlit_point.point_size = 1.0
 
-    gt_corners = boxes_to_corners(gt_boxes_raw[:, :7])
-    gt_ls = create_box_lineset(gt_corners, GT_COLOR)
-    if gt_ls is not None:
-        geoms.append(gt_ls)
+        axis_material = self.o3d.visualization.rendering.MaterialRecord()
+        axis_material.shader = 'defaultUnlit'
 
-    pred_corners = boxes_to_corners(pred_boxes[:, :7])
-    pred_ls = create_box_lineset(pred_corners, PRED_COLOR)
-    if pred_ls is not None:
-        geoms.append(pred_ls)
+        self.materials = {
+            'point_cloud': unlit_point,
+            'gt_boxes': unlit_line,
+            'pred_boxes': unlit_line,
+            'axis': axis_material,
+        }
 
-    axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=3.0, origin=[0, 0, 0])
-    geoms.append(axis)
+    def _on_layout(self, layout_context):
+        self.scene_widget.frame = self.window.content_rect
 
-    viewer = o3d.visualization.Visualizer()
-    viewer.create_window(window_name=f'HX Eval - Frame #{index}  |  GT: green  Pred: red')
-    for g in geoms:
-        viewer.add_geometry(g)
+    def _on_close(self):
+        return True
 
-    opt = viewer.get_render_option()
-    opt.background_color = np.array([0.1, 0.1, 0.1])
-    opt.point_size = 1.0
-    opt.line_width = 2.0
+    def _on_key(self, event):
+        key = self.o3d.visualization.gui.KeyName
+        event_type = self.o3d.visualization.gui.KeyEvent.Type
+        result = self.o3d.visualization.gui.SceneWidget.EventCallbackResult
+        if event.type != event_type.DOWN:
+            return result.IGNORED
 
+        if event.key in (key.A, key.LEFT):
+            self._load_frame(self.index - 1)
+            self.window.set_focus_widget(self.scene_widget)
+            return result.HANDLED
+        if event.key in (key.D, key.RIGHT):
+            self._load_frame(self.index + 1)
+            self.window.set_focus_widget(self.scene_widget)
+            return result.HANDLED
+        return result.IGNORED
+
+    def _update_window_title(self, frame_data):
+        self.window.title = (
+            f"HX Eval - Frame #{frame_data['index'] + 1}/{len(self.dataset)}"
+            '  |  A/←: prev  D/→: next  |  GT: green  Pred: red'
+        )
+
+    def _clear_scene(self):
+        self.scene.clear_geometry()
+        for label_handle in self.label_handles:
+            self.scene_widget.remove_3d_label(label_handle)
+        self.label_handles.clear()
+
+    def _compute_bounds(self, frame_data):
+        points = frame_data['raw_points'][:, :3]
+        if points.size > 0:
+            min_bound = points.min(axis=0)
+            max_bound = points.max(axis=0)
+        else:
+            min_bound = np.array([-1.0, -1.0, -1.0], dtype=np.float64)
+            max_bound = np.array([1.0, 1.0, 1.0], dtype=np.float64)
+
+        for boxes in (frame_data['gt_boxes'], frame_data['pred_boxes']):
+            if boxes.shape[0] == 0:
+                continue
+            corners = boxes_to_corners(boxes[:, :7]).reshape(-1, 3)
+            min_bound = np.minimum(min_bound, corners.min(axis=0))
+            max_bound = np.maximum(max_bound, corners.max(axis=0))
+
+        bounds = self.o3d.geometry.AxisAlignedBoundingBox(
+            min_bound.astype(np.float64),
+            max_bound.astype(np.float64),
+        )
+        if np.any(bounds.get_extent() <= 1e-6):
+            bounds = self.o3d.geometry.AxisAlignedBoundingBox(
+                min_bound.astype(np.float64) - 1.0,
+                max_bound.astype(np.float64) + 1.0,
+            )
+        return bounds
+
+    def _reset_camera(self, bounds):
+        self.scene_widget.setup_camera(60.0, bounds, bounds.get_center())
+
+    def _load_frame(self, index, reset_camera=False):
+        bounded_index = max(0, min(index, len(self.dataset) - 1))
+        if bounded_index == self.index and self.current_bounds is not None and not reset_camera:
+            return
+
+        frame_data = build_frame_data(self.detector, self.dataset_key, bounded_index, self.score_thresh)
+        self.index = bounded_index
+        self._clear_scene()
+        self._update_window_title(frame_data)
+        _print_frame_summary(frame_data, self.score_thresh)
+
+        point_cloud = create_point_cloud(frame_data['raw_points'])
+        self.scene.add_geometry('point_cloud', point_cloud, self.materials['point_cloud'])
+
+        gt_corners = boxes_to_corners(frame_data['gt_boxes'][:, :7])
+        gt_ls = create_box_lineset(gt_corners, GT_COLOR)
+        if gt_ls is not None:
+            self.scene.add_geometry('gt_boxes', gt_ls, self.materials['gt_boxes'])
+
+        pred_corners = boxes_to_corners(frame_data['pred_boxes'][:, :7])
+        pred_ls = create_box_lineset(pred_corners, PRED_COLOR)
+        if pred_ls is not None:
+            self.scene.add_geometry('pred_boxes', pred_ls, self.materials['pred_boxes'])
+
+        self.scene.add_geometry('axis', self.axis, self.materials['axis'])
+
+        for label_info in frame_data['gt_label_infos']:
+            label = self.scene_widget.add_3d_label(label_info['position'], label_info['text'])
+            label.color = self.o3d.visualization.gui.Color(*label_info['color'])
+            self.label_handles.append(label)
+        for label_info in frame_data['pred_label_infos']:
+            label = self.scene_widget.add_3d_label(label_info['position'], label_info['text'])
+            label.color = self.o3d.visualization.gui.Color(*label_info['color'])
+            self.label_handles.append(label)
+
+        bounds = self._compute_bounds(frame_data)
+        if reset_camera or self.current_bounds is None:
+            self._reset_camera(bounds)
+        self.current_bounds = bounds
+        self.window.set_focus_widget(self.scene_widget)
+        self.window.post_redraw()
+
+
+def visualize_frame(detector, dataset_key, index, score_thresh):
+    """Show an interactive Open3D viewer with labels and frame navigation."""
+    _check_dataset(detector, dataset_key, 'visualization')
+    viewer = EvalFrameViewer(detector, dataset_key, index, score_thresh)
     viewer.run()
-    viewer.destroy_window()
 
 
 def run_evaluation(detector, epoch_list):

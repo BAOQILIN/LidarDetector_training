@@ -54,6 +54,25 @@ import matplotlib.pyplot as plt
 #         pass
 
 
+def _coerce_numeric_columns(df, columns):
+    for column in columns:
+        df[column] = pd.to_numeric(df[column], errors='coerce')
+    return df
+
+
+def _filter_valid_boxes(df):
+    if df is None or df.empty:
+        return df, 0
+
+    finite_columns = ['frame', 'track_id', 'heigth', 'width', 'length', 'x', 'y', 'z', 'heading']
+    finite_mask = np.isfinite(df.loc[:, finite_columns].to_numpy(dtype=np.float32)).all(axis=1)
+    positive_size_mask = (df['width'] > 0) & (df['length'] > 0) & (df['heigth'] > 0)
+    valid_mask = finite_mask & positive_size_mask.to_numpy()
+    removed_count = int((~valid_mask).sum())
+
+    return df.loc[valid_mask, :].reset_index(drop=True), removed_count
+
+
 class data_evaluater(data_evaluater_base):
     def __init__(self, params_dict, result_root, train_flag, res_dict={}):
         """
@@ -180,16 +199,22 @@ class data_evaluater(data_evaluater_base):
                                                   'left', 'top', 'rigth', 'bottom', 'heigth', 'width', 'length',
                                                   'x', 'y', 'z', 'heading', 'cluster_id', 'score', 'v_x', 'v_y', 'v_z',
                                                   'acc'])
-        preds[['frame', 'track_id', 'heigth', 'width', 'length', 'x', 'y', 'z', 'heading', 'cluster_id', 'score']] = \
-            preds[['frame', 'track_id', 'heigth', 'width', 'length', 'x', 'y', 'z', 'heading', 'cluster_id',
-                   'score']].apply(pd.to_numeric, errors='ignore')
+        numeric_columns = ['frame', 'track_id', 'heigth', 'width', 'length', 'x', 'y', 'z', 'heading', 'cluster_id',
+                           'score']
+        preds = _coerce_numeric_columns(preds, numeric_columns)
+        preds, invalid_pred_count = _filter_valid_boxes(preds)
+
         gts = pd.DataFrame(self.gts, columns=['frame', 'track_id', 'obj_type', 'truncation', 'occlusion', 'theta',
                                               'left', 'top', 'rigth', 'bottom', 'heigth', 'width', 'length',
                                               'x', 'y', 'z', 'heading', 'cluster_id', 'score', 'v_x', 'v_y', 'v_z',
                                               'acc'])
-        gts[['frame', 'track_id', 'heigth', 'width', 'length', 'x', 'y', 'z', 'heading', 'cluster_id', 'score']] = \
-            gts[['frame', 'track_id', 'heigth', 'width', 'length', 'x', 'y', 'z', 'heading', 'cluster_id',
-                 'score']].apply(pd.to_numeric, errors='ignore')
+        gts = _coerce_numeric_columns(gts, numeric_columns)
+        gts, invalid_gt_count = _filter_valid_boxes(gts)
+
+        if invalid_pred_count or invalid_gt_count:
+            clean_msg = f'evaluation skipped invalid boxes: preds={invalid_pred_count}, gts={invalid_gt_count}'
+            print(clean_msg)
+            self.res_dict['msg'].append(clean_msg)
 
         self.gts = None
         self.preds = None
@@ -358,6 +383,9 @@ def PointInRec(pot, rec_points):
 # line2: [[xc, yc], [xd, yd]]
 # ref: https://blog.csdn.net/wcl0617/article/details/78654944
 def LineCrossLine(line1, line2):
+    if not np.isfinite(line1).all() or not np.isfinite(line2).all():
+        return []
+
     ab = line1[1, :] - line1[0, :]
     cd = line2[1, :] - line2[0, :]
     ac = line2[0, :] - line1[0, :]
@@ -370,14 +398,20 @@ def LineCrossLine(line1, line2):
         return []
 
     ab_cross_cd = np.cross(ab, cd)
+    if not np.isfinite(ab_cross_cd) or np.isclose(ab_cross_cd, 0.0):
+        return []
 
     t = np.cross(ac, cd) / ab_cross_cd
     u = np.cross(ab, -ac) / ab_cross_cd
 
-    if t <= 1 and t >= 0 and u >= 0 and u <= 1:
-        return list(line1[0, :] + t * ab)
-    else:
+    if not np.isfinite(t) or not np.isfinite(u):
         return []
+
+    if t <= 1 and t >= 0 and u >= 0 and u <= 1:
+        cross_point = line1[0, :] + t * ab
+        if np.isfinite(cross_point).all():
+            return list(cross_point)
+    return []
 
     # line: [[xa, ya], [xb, yb]]
 
@@ -412,6 +446,9 @@ def LineCrossRec(line, rec):
 # rec2: M * 2
 # ref: https://blog.csdn.net/Ghy817920/article/details/85067993
 def RecCrossRec(rec1, rec2):
+    if not np.isfinite(rec1).all() or not np.isfinite(rec2).all():
+        return [], 0
+
     rec1_num = rec1.shape[0]
     rec2_num = rec2.shape[0]
 
@@ -724,12 +761,18 @@ class trackingEvaluation(object):
         gt_area = groundtruth.width * groundtruth.length
         tr_area = track.width * track.length
 
-        if criterion == 'union':
-            iou = inner_area / (gt_area + tr_area - inner_area)
-        else:
-            iou = inner_area / gt_area
+        if not np.isfinite(gt_area) or not np.isfinite(tr_area) or gt_area <= 0 or tr_area <= 0:
+            return 0.0
 
-        return iou
+        if criterion == 'union':
+            denominator = gt_area + tr_area - inner_area
+        else:
+            denominator = gt_area
+
+        if not np.isfinite(denominator) or denominator <= 0:
+            return 0.0
+
+        return inner_area / denominator
 
     def _ComputerDistanceByIOU(self, groundtruth, track, criterion='union'):
 
@@ -769,11 +812,18 @@ class trackingEvaluation(object):
 
                     gt_area = groundtruth.width[gt_index] * groundtruth.length[gt_index]
                     tr_area = track.width[tr_index] * track.length[tr_index]
+                    if not np.isfinite(gt_area) or not np.isfinite(tr_area) or gt_area <= 0 or tr_area <= 0:
+                        continue
 
                     if criterion == 'union':
-                        iou[gt_index, tr_index] = inner_area / (gt_area + tr_area - inner_area)
+                        denominator = gt_area + tr_area - inner_area
                     else:
-                        iou[gt_index, tr_index] = inner_area / gt_area
+                        denominator = gt_area
+
+                    if not np.isfinite(denominator) or denominator <= 0:
+                        continue
+
+                    iou[gt_index, tr_index] = inner_area / denominator
 
                     if plot:
                         title = "frame: %d, gt: %d, tr: %d, iou: %.3f" % (

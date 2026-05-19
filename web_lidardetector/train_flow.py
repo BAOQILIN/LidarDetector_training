@@ -45,13 +45,19 @@ class LidarDetector(object):
             self.data_component = data_components(self.params_dict.copy(), self.data_root, self.result_root, self.train_flag, self.test_flag, res_dict=self.res_dict)
 
     def train(self):
-        # self.model_component.model_computer.load_model_params_torch(self.pretrained_path)
-        # if not self.params_dict['TRAIN']['OVERALL']['INITIAL_RESULT'][0] and self.params_dict['TRAIN']['CTRL']['CTRL_']['CONTINUE_EPOCH'][0] is not None:
-        #     start_epoch = self.params_dict['TRAIN']['CTRL']['CTRL_']['CONTINUE_EPOCH'][0] + 1
-        # else:
-            # start_epoch = 0
-        
-        start_epoch = 0
+        continue_epoch = self.params_dict['TRAIN']['CTRL']['CTRL_'].get('CONTINUE_EPOCH', [-1])[0]
+        should_resume = (not self.params_dict['TRAIN']['OVERALL']['INITIAL_RESULT'][0]) and continue_epoch is not None and continue_epoch >= 0
+        if should_resume:
+            start_epoch = continue_epoch + 1
+            continue_prefix = self.params_dict['TRAIN']['PATH'].get('CONTINUE_MODEL_PREFIX', [self.params_dict['TRAIN']['PATH']['SAVE_MODEL_PREFIX'][0]])[0]
+            self.model_component.model_computer.load_model_params_torch(continue_epoch, prefix=continue_prefix)
+            resume_message = self._timestamped(f'Train: resume from checkpoint epoch {continue_epoch}, start epoch {start_epoch + 1}')
+        else:
+            start_epoch = 0
+            resume_message = self._timestamped('Train: start from epoch 1')
+
+        self.res_dict['msg'].append(resume_message)
+        print(resume_message)
 
         if self.params_dict['TRAIN']['CTRL']['CTRL_']['SCHEDULER_TYPE'][0] == 'OneCycleLR':
             train_batches = len(self.data_component.data_loader.loaders['train'])

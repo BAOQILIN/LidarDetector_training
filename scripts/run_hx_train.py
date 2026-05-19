@@ -28,6 +28,7 @@ def main():
     parser.add_argument('--eval-every-epochs', type=int, default=None, help='Override validation frequency in epochs')
     parser.add_argument('--num-workers', type=int, default=None, help='Override DataLoader worker count for train/eval')
     parser.add_argument('--multi-gpu', action='store_true', help='Enable DataParallel when multiple CUDA devices are available')
+    parser.add_argument('--resume-epoch', type=int, default=None, help='Resume from checkpoint index N (0-based, loads *_N.torch) and continue from the next epoch')
     args = parser.parse_args()
 
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -52,6 +53,9 @@ def main():
             f'Run scripts/run_hx_preprocess.py --mode train first.'
         )
 
+    if args.smoke and args.resume_epoch is not None:
+        raise ValueError('--smoke cannot be used with --resume-epoch')
+
     if args.smoke:
         train_cfg['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0] = 1
         train_cfg['TRAIN']['CTRL']['DATA']['BATCH_SIZE'][0] = 1
@@ -68,6 +72,21 @@ def main():
         train_cfg['TRAIN']['CTRL']['DATA']['NUM_WORKERS'][0] = args.num_workers
     if args.multi_gpu:
         train_cfg['TRAIN']['CTRL']['CTRL_']['USE_MULTI_GPU'][0] = True
+    if args.resume_epoch is not None:
+        if args.resume_epoch < 0:
+            raise ValueError('--resume-epoch must be greater than or equal to 0')
+        total_epochs = train_cfg['TRAIN']['CTRL']['CTRL_']['EPOCH_NUM'][0]
+        if args.resume_epoch >= total_epochs:
+            raise ValueError(
+                f'--resume-epoch ({args.resume_epoch}) must be smaller than total epochs ({total_epochs}). '
+                'Increase --epochs to continue training.'
+            )
+        train_cfg['TRAIN']['OVERALL']['INITIAL_RESULT'][0] = False
+        train_cfg['TRAIN']['CTRL']['CTRL_']['CONTINUE_EPOCH'][0] = args.resume_epoch
+        continue_prefix = train_cfg['TRAIN']['PATH']['CONTINUE_MODEL_PREFIX'][0]
+        checkpoint_path = os.path.join(model_epoch_root, f'{continue_prefix}_{args.resume_epoch}.torch')
+        if not os.path.exists(checkpoint_path):
+            raise FileNotFoundError(f'Resume checkpoint not found: {checkpoint_path}')
 
     res = {'msg': []}
     ITrain(train_cfg, args.data_root, args.result_root, model_epoch_root, pretrained_path=None, check_flag=args.smoke, res_dict=res)

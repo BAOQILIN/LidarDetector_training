@@ -5,7 +5,7 @@ PREPROCESS:
   DATASET_STYLE: ['hx_flat', 1, '数据集风格: HX 扁平目录']
   ORI_DATA_PATH: ['origin_type', 1, 'HX 扁平原始数据目录']
   ORI_LABEL_PATH: ['Label', 1, 'HX 模式下不使用单独标签目录']
-  SAVE_DATA_PATH: ['hx_preprocess_debug', 1, '预处理输出目录']
+  SAVE_DATA_PATH: ['hx_preprocess', 1, '预处理输出目录']
   COUNT_LIDAR_POINTS: [False, 1, '是否统计每个gt框内点数，HX模式下默认关闭以加速预处理']
   USE_MULTIPROCESS: [True, 1, '是否启用多进程预处理']
   NUM_WORKERS: [24, 1, 'HX预处理进程数']
@@ -31,7 +31,7 @@ TRAIN_MODEL:
       TRAIN_PREFIX: ['training', 0, '模型处于生成训练集阶段的标志参数']
       INITIAL_RESULT: [True, 2, '是否初始化保存的结果']
     PATH:
-      DATASET_PATH: ['hx_preprocess_debug', 1, '输入预处理数据的路径']
+      DATASET_PATH: ['hx_preprocess', 1, '输入预处理数据的路径']
       RESULT_PATH: ['loss_eva', 1, '保存模型损失和测评结果的路径']
       SAVE_MODEL_PREFIX: ['PointPillars', 2, '保存模型的前缀']
       CONTINUE_MODEL_PREFIX: ['PointPillars', 2, '续跑模型的前缀']

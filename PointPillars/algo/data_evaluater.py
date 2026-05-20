@@ -9,7 +9,16 @@ import numba
 import copy
 from munkres import Munkres
 
-import matplotlib.pyplot as plt
+
+plt = None
+
+
+def _get_matplotlib_pyplot():
+    global plt
+    if plt is None:
+        import matplotlib.pyplot as pyplot
+        plt = pyplot
+    return plt
 
 
 # class data_evaluater_base(metaclass=abc.ABCMeta):
@@ -247,22 +256,24 @@ class data_evaluater(data_evaluater_base):
 def PlotRec(points, color, set_axis=False):
     if points == []:
         return
+
+    pyplot = _get_matplotlib_pyplot()
     if points.shape[0] == 1:
-        plt.scatter(points[:, 0], points[:, 1], c=color)
+        pyplot.scatter(points[:, 0], points[:, 1], c=color)
         return
     if points.shape[0] == 2:
-        plt.plot([points[0, 1], points[1, 1]], [points[0, 0], points[1, 0]], '-o', color=color)
+        pyplot.plot([points[0, 1], points[1, 1]], [points[0, 0], points[1, 0]], '-o', color=color)
         return
 
     points = np.r_[points, points[0, :].reshape([1, -2])]
 
     for i in range(1, points.shape[0]):
-        plt.plot([points[i - 1, 1], points[i, 1]], [points[i - 1, 0], points[i, 0]], '-o', color=color)
+        pyplot.plot([points[i - 1, 1], points[i, 1]], [points[i - 1, 0], points[i, 0]], '-o', color=color)
 
     if set_axis:
-        plt.xlabel('y')
-        plt.ylabel('x')
-        ax = plt.gca()
+        pyplot.xlabel('y')
+        pyplot.ylabel('x')
+        ax = pyplot.gca()
         ax.invert_xaxis()
         # ax.invert_yaxis()
         ax.yaxis.set_ticks_position('right')
@@ -805,7 +816,8 @@ class trackingEvaluation(object):
                     cross_pots, inner_area = RecCrossRec(gt_vertex_pot[:, :, gt_index], tr_vertex_pot[:, :, tr_index])
 
                     if plot:
-                        fig = plt.figure()
+                        pyplot = _get_matplotlib_pyplot()
+                        fig = pyplot.figure()
                         PlotRec(gt_vertex_pot[:, :, gt_index], 'r')
                         PlotRec(tr_vertex_pot[:, :, tr_index], 'b')
                         PlotRec(cross_pots, 'k', True)
@@ -828,8 +840,8 @@ class trackingEvaluation(object):
                     if plot:
                         title = "frame: %d, gt: %d, tr: %d, iou: %.3f" % (
                         groundtruth.frame[gt_index], gt_index, tr_index, iou[gt_index, tr_index])
-                        plt.title(title)
-                        plt.savefig("/home/lz/Dataset/LidarDetection/" + title + ".png")
+                        pyplot.title(title)
+                        pyplot.savefig("/home/lz/Dataset/LidarDetection/" + title + ".png")
 
         return iou
 

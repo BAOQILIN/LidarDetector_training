@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(__file__) + os.sep + '..')
 from web_lidardetector.train_flow import *
 import data_preprocessor
 import data_postprocessor
-import data_displayer
 import data_dataset
 import data_evaluater
 import loss_computers
@@ -158,6 +157,7 @@ def ISave(q, params_dict, data_root, result_root, model_epoch_root, reload_list,
 
 
 def IDisplay(params_dict, result_root, picture_root, res_dict={}):
+    import data_displayer
 
     if 'DISPLAY' in params_dict.keys():
         params_dict = params_dict['DISPLAY']
